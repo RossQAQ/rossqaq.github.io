@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>C++ 随记 on Roses</title><link>https://demo.stack.jimmycai.com/categories/cppnotes/</link><description>Recent content in C++ 随记 on Roses</description><generator>Hugo -- gohugo.io</generator><language>zh-cn</language><lastBuildDate>Wed, 27 Dec 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://demo.stack.jimmycai.com/categories/cppnotes/index.xml" rel="self" type="application/rss+xml"/><item><title>C++20 Ranges overview</title><link>https://demo.stack.jimmycai.com/p/ranges-overview/</link><pubDate>Wed, 27 Dec 2023 00:00:00 +0000</pubDate><guid>https://demo.stack.jimmycai.com/p/ranges-overview/</guid><description>&lt;img src="https://demo.stack.jimmycai.com/p/ranges-overview/ranges-cover.png" alt="Featured image of post C++20 Ranges overview" />&lt;p>本文翻译自：&lt;a class="link" href="https://hannes.hauswedell.net/post/2019/11/30/range_intro/#lazy-evaluation" target="_blank" rel="noopener"
+>A beginner&amp;rsquo;s guide to C++ Ranges and Views. —— Hannes Hauswedell&lt;/a>&lt;/p>
+&lt;p>C++ Ranges 是 C++20 的新特性之一，&amp;ldquo;views&amp;rdquo; 是 ranges 的大头。这篇文章是给刚接触 C++ ranges 的程序员的一篇介绍。&lt;/p>
+&lt;h2 id="前言">前言&lt;/h2>
+&lt;p>你不需要拥有任何关于 C++ ranges 的前置知识，但你&lt;strong>需要理解 C++ 迭代器，以及了解一些 C++ Concept 特性&lt;/strong>，这里有&lt;a class="link" href="https://www.stroustrup.com/good_concepts.pdf" target="_blank" rel="noopener"
+>老爷子的文章&lt;/a>。&lt;/p>
+&lt;p>这篇文章基于写给 &lt;a class="link" href="https://github.com/seqan/seqan3/" target="_blank" rel="noopener"
+>SeqAn3 library&lt;/a> 的文档，原文&lt;a class="link" href="https://docs.seqan.de/seqan3/3-master-user/tutorial_ranges.html" target="_blank" rel="noopener"
+>在这&lt;/a>，也有关于 &lt;a class="link" href="http://docs.seqan.de/seqan/3-master-user/tutorial_concepts.html" target="_blank" rel="noopener"
+>Concept 的文章&lt;/a>&lt;/p>
+&lt;blockquote>
+&lt;p>之后都会尝试搬运翻译。&lt;/p>
+&lt;/blockquote>
+&lt;p>现在的标准库也都是 ranges v3 了，&lt;a class="link" href="https://github.com/ericniebler/range-v3/" target="_blank" rel="noopener"
+>原始链接&lt;/a>。&lt;/p>
+&lt;h2 id="动机">动机&lt;/h2>
+&lt;p>传统的 STL 泛型算法，例如 &lt;code>std::sort&lt;/code> ，接受一对迭代器（如 &lt;code>begin()&lt;/code> 的返回值），你需要调用&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">(),&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">end&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">// 而不是
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>为什么这么设计？因为更加灵活，举个例子：&lt;/p>
+&lt;ul>
+&lt;li>只排序第五个元素之后的元素&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">end&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>使用反向迭代器排序&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rbegin&lt;/span>&lt;span class="p">(),&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rend&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>结合二者（排序，除最后5个元素）&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rbegin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rend&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>但这样的接口相比直接整体调用 &lt;code>std::sort&lt;/code> 来排序你希望的部分更不直观，它也更可能出错，例如，混淆了两种不兼容的迭代器。&lt;/p>
+&lt;p>C++20 引入了 &lt;em>ranges&lt;/em> 并在 &lt;code>std::ranges::&lt;/code> 下重写了所有算法，例如 &lt;code>std::ranges::sort(vec)&lt;/code>。现在，假如 vec 是 range，算法就可以正常运行。而 vector 就是 ranges！&lt;/p>
+&lt;p>那么使用 ranges 版本算法的优点在哪呢？在 C++20，你可以：&lt;/p>
+&lt;ul>
+&lt;li>只排序第五个元素之后的元素&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">ranges&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">drop&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>反向排序&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">ranges&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>结合&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">ranges&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">drop&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>稍后我们讨论 &lt;code>std::views::reverse(vec)&lt;/code> 的行为。现在只需要记住&lt;strong>它返回某些 &lt;code>std::ranges::sort&lt;/code> 可以排序的容器&lt;/strong>。之后你就会看到这种方式相较于传统迭代器更加灵活的地方。&lt;/p>
+&lt;h2 id="范围">范围&lt;/h2>
+&lt;p>范围 (&lt;em>Ranges&lt;/em>) 是 “一些元素” 或者 “可迭代对象” 的抽象。最最基础的 range 定义&lt;strong>只要求提供 &lt;code>begin()&lt;/code> 和 &lt;code>end()&lt;/code>&lt;/strong>。&lt;/p>
+&lt;h2 id="范围概念">范围概念&lt;/h2>
+&lt;p>有很多种方法解释 ranges，最重要的一种是根据其迭代器的能力。&lt;/p>
+&lt;p>ranges 通常可以是输入范围（可以读取）、输出范围（可以写入）二者之一，也可以都是。&lt;/p>
+&lt;p>例如，&lt;code>std::vector&amp;lt;int&amp;gt;&lt;/code> 就既是输入范围又是输出范围，&lt;code>std::vector&amp;lt;int&amp;gt; const&lt;/code> 只能是输入范围（只读）。&lt;/p>
+&lt;p>输入迭代器有不同的 &lt;em>强度&lt;/em>，其通过不同的更精细的概念实现(即，满足更强概念的类型总是满足更弱的概念):&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Concept&lt;/th>
+&lt;th>描述&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>std::ranges::input_range&lt;/td>
+&lt;td>可以&lt;strong>至少一次&lt;/strong>从头迭代至尾&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::forward_range&lt;/td>
+&lt;td>可以&lt;strong>多次&lt;/strong>从头迭代至尾&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::bidirectional_range&lt;/td>
+&lt;td>迭代器可以通过 &lt;code>--&lt;/code> 反向移动&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::random_access_range&lt;/td>
+&lt;td>可以通过 &lt;code>[]&lt;/code> &lt;strong>在常量时间内&lt;/strong>访问元素&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::contiguous_range&lt;/td>
+&lt;td>元素在内存中总是连续存储&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>这些概念直接从迭代器各自的概念继承而来。例如，如果一个 ranges 模型的迭代器满足 &lt;code>std::forward_iterator&lt;/code> ，那么他就是一个 &lt;code>std::ranges::forward_range&lt;/code>。&lt;/p>
+&lt;p>对于常见的标准库容器，这里展示了他们满足的 ranges 模型：&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>&lt;/th>
+&lt;th>std::forward_list&lt;/th>
+&lt;th>std::list&lt;/th>
+&lt;th>std::deque&lt;/th>
+&lt;th>std::array&lt;/th>
+&lt;th>std::vector&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>std::ranges::input_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::forward_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::bidirectional_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::random_access_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::contiguous_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>也有一些概念独立于以上的输入输出要求。例如，&lt;code>std::ranges::sized_range&lt;/code> 要求常量时间内通过 &lt;code>std::ranges::size()&lt;/code> 获取 range 的容量。&lt;/p>
+&lt;h2 id="存储行为">存储行为&lt;/h2>
+&lt;p>&lt;strong>容器&lt;/strong>是 ranges 最熟悉的，他们拥有自己的所有元素，STL 已经提供了许多容器，参上。&lt;/p>
+&lt;p>&lt;strong>视图&lt;/strong> 指经常通过另一个 range 以及其底层 range 执行算法、操作等变换得来的 ranges。&lt;strong>视图不拥有除其算法外的任何数据&lt;/strong>，且其构造、析构、拷贝都不应依赖于其可以表示的元素的数量。算法要求&lt;strong>惰性求值&lt;/strong>，所以结合多个 views 是可行的。&lt;/p>
+&lt;p>存储行为与通过迭代器定义的范围概念是正交的。&lt;strong>例如，你可以拥有一个容器，满足 &lt;code>std::ranges::random_access_range&lt;/code> ，但其视图可以满足也可以不满足。&lt;/strong>&lt;/p>
+&lt;h2 id="视图">视图&lt;/h2>
+&lt;h3 id="惰性求值">惰性求值&lt;/h3>
+&lt;p>视图一个关键的特性就是，&lt;strong>无论对其应用什么变换，他们总是在你需要一个元素时才执行，而并不是在视图创建时执行&lt;/strong>。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这段代码中，v 是一个视图；创建他并不会改变 &lt;code>vec&lt;/code> 的值，且 &lt;code>v&lt;/code> 也不存储任何元素，构造 &lt;code>v&lt;/code> 以及其在内存中的大小都和 &lt;code>vec&lt;/code> 的大小无关。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="sc">&amp;#39;\n&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>会打印 &amp;ldquo;6&amp;rdquo;，但重要的是&lt;strong>将 vec 的最后一个元素解析为 v 的第一个元素是按需发生的&lt;/strong>。这保证视图可以作为更灵活的迭代器来使用，但他意味着 view 有一些额外开销，如果一个相同元素需要使用多次，那么就得重复计算。&lt;/p>
+&lt;h2 id="组合能力">组合能力&lt;/h2>
+&lt;p>你可能想知道为什么文章中写&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>而不是&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这是因为 &lt;code>std::views::reverse&lt;/code> 并不是视图本身，他是一个底层视图（我们的例子中，是 vector）的 &lt;em>&lt;strong>适配器 (adaptor)&lt;/strong>&lt;/em>，并且返回一个基于 vector 的视图对象。视图的具体类型隐藏在 auto 身后。这有一些好处，我们不需要关心视图类型的模板参数，但是更重要的是适配器有一个额外的特性：&lt;strong>适配器可以和其他适配器链起来&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">vec&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">drop&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="sc">&amp;#39;\n&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>会打印什么呢？&lt;/p>
+&lt;p>会打印 4，因为 4 是反向后去掉 2个元素后的第一个元素。&lt;/p>
+&lt;p>在上面的例子中，vector 是 piped（类似于 unix/linux 命令行）传入 reverse 适配器，之后传入 drop 适配器，最后组合出的视图被返回。管道是一种提升可读性的形式。例如&lt;/p>
+&lt;p>&lt;code>vec | foo | bar(3) | baz(7)&lt;/code> 等同于 &lt;code>baz(bar(foo(vec), 3), 7)&lt;/code>&lt;/p>
+&lt;p>注意，访问视图的 0th 元素仍然是惰性的，这也决定了访问时其映射的元素会发生什么。&lt;/p>
+&lt;hr>
+&lt;h3 id="练习">练习&lt;/h3>
+&lt;p>基于 &lt;code>std::vector vec{1, 2, 3, 4, 5, 6}&lt;/code> 创建一个视图，过滤掉所有的奇数，平方剩下的值。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">vec&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="c1">// ...?
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="sc">&amp;#39;\n&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// 应该打印 4
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>完成这个练习，你可以使用 &lt;code>std::views::transform&lt;/code> 以及 &lt;code>std::views::filter&lt;/code> 。他们都接受一个可调用对象。&lt;code>std::views::transform&lt;/code> 会在底层 range 的元素上应用可调用对象，&lt;code>std::views::filter&lt;/code> 会移除不满足可调用对象的元素。&lt;/p>
+&lt;p>答案（我写的）：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span> &lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">square&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[](&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="n">value&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="k">return&lt;/span> &lt;span class="n">value&lt;/span> &lt;span class="o">*&lt;/span> &lt;span class="n">value&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">odd&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[](&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="n">value&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="k">return&lt;/span> &lt;span class="n">value&lt;/span> &lt;span class="o">%&lt;/span> &lt;span class="mi">2&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="mi">0&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">vec&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">filter&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">odd&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">transform&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">square&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="视图概念">视图概念&lt;/h2>
+&lt;p>视图是特殊的 range，其实例化于 &lt;code>std::ranges::view&lt;/code> 概念，每个通过视图适配器返回的视图都是符合该概念的模型，还有哪些范围概念是由视图建模的？&lt;/p>
+&lt;p>这取决于底层 range 以及视图本身。很容易想到，视图并不会建模比其底层 range 更强的 range 概念（除了他们总是 &lt;code>std::ranges::view&lt;/code> ），他会尽可能多地保留 range 的概念。&lt;/p>
+&lt;p>&lt;strong>例如，&lt;code>std::views::reverse&lt;/code> 返回的视图满足 &lt;code>std::ranges::random_access_range&lt;/code>（以及更弱的模型），前提是底层视图满足该概念，但他永远不会满足 &lt;code>std::ranges::contiguous_range&lt;/code>，因为视图中的第三个元素在内存中并不位于第二个元素之后，而是其之前。&lt;/strong>&lt;/p>
+&lt;p>这可能会震惊一些人，许多视图满足 &lt;code>std::ranges::output_range&lt;/code>，如果其底层 range 满足的话。例如：&lt;strong>非只读视图：&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">vec&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">drop&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="mi">42&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// now vec == {1, 2, 3, 42, 5, 6 } !!
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;hr>
+&lt;h3 id="练习-1">练习&lt;/h3>
+&lt;p>考虑上一道习题（filter + transform），v 可能满足哪些概念？&lt;/p>
+&lt;p>其满足：&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Concept&lt;/th>
+&lt;th>满足与否&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>std::ranges::input_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::forward_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::bidirectional_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::random_access_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::contiguous_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::view&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::sized_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::output_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>filter 无法保证元素随机访问，因此并不连续。因为无法在常数时间内知道底层 range 的元素究竟是第几个元素。它不能“跳”过去，他需要遍历底层 range，这当然也代表我们无法在常数时间内知道大小。&lt;/p>
+&lt;p>transform 视图可以 jump，因为它总是对每个独立元素执行相同操作；它也可以保证 sized-ness 因为留下的 size 相同。在这些情况下，filter 都会丢弃这两只属性。换句话说，transform视图 在每次访问时产生新的元素，因此 &lt;code>v&lt;/code> 不是输出范围，你不能向他的元素赋值。这也阻止了 contiguous-range 的建立（如果没有被 filter 处理掉的话，因为按需创建的值根本不在内存中存储）&lt;/p>
+&lt;p>理解这些需要更多练习，在 SeqAn3 中提供了&lt;a class="link" href="https://docs.seqan.de/seqan/3-master-user/group__views.html" target="_blank" rel="noopener"
+>详细的文档&lt;/a>。&lt;/p></description></item></channel></rss>

@@ -1,0 +1,787 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Roses</title><link>https://demo.stack.jimmycai.com/</link><description>Recent content on Roses</description><generator>Hugo -- gohugo.io</generator><language>zh-cn</language><lastBuildDate>Wed, 27 Dec 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://demo.stack.jimmycai.com/index.xml" rel="self" type="application/rss+xml"/><item><title>C++20 Ranges overview</title><link>https://demo.stack.jimmycai.com/p/ranges-overview/</link><pubDate>Wed, 27 Dec 2023 00:00:00 +0000</pubDate><guid>https://demo.stack.jimmycai.com/p/ranges-overview/</guid><description>&lt;img src="https://demo.stack.jimmycai.com/p/ranges-overview/ranges-cover.png" alt="Featured image of post C++20 Ranges overview" />&lt;p>本文翻译自：&lt;a class="link" href="https://hannes.hauswedell.net/post/2019/11/30/range_intro/#lazy-evaluation" target="_blank" rel="noopener"
+>A beginner&amp;rsquo;s guide to C++ Ranges and Views. —— Hannes Hauswedell&lt;/a>&lt;/p>
+&lt;p>C++ Ranges 是 C++20 的新特性之一，&amp;ldquo;views&amp;rdquo; 是 ranges 的大头。这篇文章是给刚接触 C++ ranges 的程序员的一篇介绍。&lt;/p>
+&lt;h2 id="前言">前言&lt;/h2>
+&lt;p>你不需要拥有任何关于 C++ ranges 的前置知识，但你&lt;strong>需要理解 C++ 迭代器，以及了解一些 C++ Concept 特性&lt;/strong>，这里有&lt;a class="link" href="https://www.stroustrup.com/good_concepts.pdf" target="_blank" rel="noopener"
+>老爷子的文章&lt;/a>。&lt;/p>
+&lt;p>这篇文章基于写给 &lt;a class="link" href="https://github.com/seqan/seqan3/" target="_blank" rel="noopener"
+>SeqAn3 library&lt;/a> 的文档，原文&lt;a class="link" href="https://docs.seqan.de/seqan3/3-master-user/tutorial_ranges.html" target="_blank" rel="noopener"
+>在这&lt;/a>，也有关于 &lt;a class="link" href="http://docs.seqan.de/seqan/3-master-user/tutorial_concepts.html" target="_blank" rel="noopener"
+>Concept 的文章&lt;/a>&lt;/p>
+&lt;blockquote>
+&lt;p>之后都会尝试搬运翻译。&lt;/p>
+&lt;/blockquote>
+&lt;p>现在的标准库也都是 ranges v3 了，&lt;a class="link" href="https://github.com/ericniebler/range-v3/" target="_blank" rel="noopener"
+>原始链接&lt;/a>。&lt;/p>
+&lt;h2 id="动机">动机&lt;/h2>
+&lt;p>传统的 STL 泛型算法，例如 &lt;code>std::sort&lt;/code> ，接受一对迭代器（如 &lt;code>begin()&lt;/code> 的返回值），你需要调用&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">(),&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">end&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">// 而不是
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>为什么这么设计？因为更加灵活，举个例子：&lt;/p>
+&lt;ul>
+&lt;li>只排序第五个元素之后的元素&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">end&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>使用反向迭代器排序&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rbegin&lt;/span>&lt;span class="p">(),&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rend&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>结合二者（排序，除最后5个元素）&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rbegin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rend&lt;/span>&lt;span class="p">());&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>但这样的接口相比直接整体调用 &lt;code>std::sort&lt;/code> 来排序你希望的部分更不直观，它也更可能出错，例如，混淆了两种不兼容的迭代器。&lt;/p>
+&lt;p>C++20 引入了 &lt;em>ranges&lt;/em> 并在 &lt;code>std::ranges::&lt;/code> 下重写了所有算法，例如 &lt;code>std::ranges::sort(vec)&lt;/code>。现在，假如 vec 是 range，算法就可以正常运行。而 vector 就是 ranges！&lt;/p>
+&lt;p>那么使用 ranges 版本算法的优点在哪呢？在 C++20，你可以：&lt;/p>
+&lt;ul>
+&lt;li>只排序第五个元素之后的元素&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">ranges&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">drop&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>反向排序&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">ranges&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>结合&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">ranges&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">sort&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">drop&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>稍后我们讨论 &lt;code>std::views::reverse(vec)&lt;/code> 的行为。现在只需要记住&lt;strong>它返回某些 &lt;code>std::ranges::sort&lt;/code> 可以排序的容器&lt;/strong>。之后你就会看到这种方式相较于传统迭代器更加灵活的地方。&lt;/p>
+&lt;h2 id="范围">范围&lt;/h2>
+&lt;p>范围 (&lt;em>Ranges&lt;/em>) 是 “一些元素” 或者 “可迭代对象” 的抽象。最最基础的 range 定义&lt;strong>只要求提供 &lt;code>begin()&lt;/code> 和 &lt;code>end()&lt;/code>&lt;/strong>。&lt;/p>
+&lt;h2 id="范围概念">范围概念&lt;/h2>
+&lt;p>有很多种方法解释 ranges，最重要的一种是根据其迭代器的能力。&lt;/p>
+&lt;p>ranges 通常可以是输入范围（可以读取）、输出范围（可以写入）二者之一，也可以都是。&lt;/p>
+&lt;p>例如，&lt;code>std::vector&amp;lt;int&amp;gt;&lt;/code> 就既是输入范围又是输出范围，&lt;code>std::vector&amp;lt;int&amp;gt; const&lt;/code> 只能是输入范围（只读）。&lt;/p>
+&lt;p>输入迭代器有不同的 &lt;em>强度&lt;/em>，其通过不同的更精细的概念实现(即，满足更强概念的类型总是满足更弱的概念):&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Concept&lt;/th>
+&lt;th>描述&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>std::ranges::input_range&lt;/td>
+&lt;td>可以&lt;strong>至少一次&lt;/strong>从头迭代至尾&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::forward_range&lt;/td>
+&lt;td>可以&lt;strong>多次&lt;/strong>从头迭代至尾&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::bidirectional_range&lt;/td>
+&lt;td>迭代器可以通过 &lt;code>--&lt;/code> 反向移动&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::random_access_range&lt;/td>
+&lt;td>可以通过 &lt;code>[]&lt;/code> &lt;strong>在常量时间内&lt;/strong>访问元素&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::contiguous_range&lt;/td>
+&lt;td>元素在内存中总是连续存储&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>这些概念直接从迭代器各自的概念继承而来。例如，如果一个 ranges 模型的迭代器满足 &lt;code>std::forward_iterator&lt;/code> ，那么他就是一个 &lt;code>std::ranges::forward_range&lt;/code>。&lt;/p>
+&lt;p>对于常见的标准库容器，这里展示了他们满足的 ranges 模型：&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>&lt;/th>
+&lt;th>std::forward_list&lt;/th>
+&lt;th>std::list&lt;/th>
+&lt;th>std::deque&lt;/th>
+&lt;th>std::array&lt;/th>
+&lt;th>std::vector&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>std::ranges::input_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::forward_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::bidirectional_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::random_access_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::contiguous_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>√&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>也有一些概念独立于以上的输入输出要求。例如，&lt;code>std::ranges::sized_range&lt;/code> 要求常量时间内通过 &lt;code>std::ranges::size()&lt;/code> 获取 range 的容量。&lt;/p>
+&lt;h2 id="存储行为">存储行为&lt;/h2>
+&lt;p>&lt;strong>容器&lt;/strong>是 ranges 最熟悉的，他们拥有自己的所有元素，STL 已经提供了许多容器，参上。&lt;/p>
+&lt;p>&lt;strong>视图&lt;/strong> 指经常通过另一个 range 以及其底层 range 执行算法、操作等变换得来的 ranges。&lt;strong>视图不拥有除其算法外的任何数据&lt;/strong>，且其构造、析构、拷贝都不应依赖于其可以表示的元素的数量。算法要求&lt;strong>惰性求值&lt;/strong>，所以结合多个 views 是可行的。&lt;/p>
+&lt;p>存储行为与通过迭代器定义的范围概念是正交的。&lt;strong>例如，你可以拥有一个容器，满足 &lt;code>std::ranges::random_access_range&lt;/code> ，但其视图可以满足也可以不满足。&lt;/strong>&lt;/p>
+&lt;h2 id="视图">视图&lt;/h2>
+&lt;h3 id="惰性求值">惰性求值&lt;/h3>
+&lt;p>视图一个关键的特性就是，&lt;strong>无论对其应用什么变换，他们总是在你需要一个元素时才执行，而并不是在视图创建时执行&lt;/strong>。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这段代码中，v 是一个视图；创建他并不会改变 &lt;code>vec&lt;/code> 的值，且 &lt;code>v&lt;/code> 也不存储任何元素，构造 &lt;code>v&lt;/code> 以及其在内存中的大小都和 &lt;code>vec&lt;/code> 的大小无关。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="sc">&amp;#39;\n&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>会打印 &amp;ldquo;6&amp;rdquo;，但重要的是&lt;strong>将 vec 的最后一个元素解析为 v 的第一个元素是按需发生的&lt;/strong>。这保证视图可以作为更灵活的迭代器来使用，但他意味着 view 有一些额外开销，如果一个相同元素需要使用多次，那么就得重复计算。&lt;/p>
+&lt;h2 id="组合能力">组合能力&lt;/h2>
+&lt;p>你可能想知道为什么文章中写&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>而不是&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="n">vec&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这是因为 &lt;code>std::views::reverse&lt;/code> 并不是视图本身，他是一个底层视图（我们的例子中，是 vector）的 &lt;em>&lt;strong>适配器 (adaptor)&lt;/strong>&lt;/em>，并且返回一个基于 vector 的视图对象。视图的具体类型隐藏在 auto 身后。这有一些好处，我们不需要关心视图类型的模板参数，但是更重要的是适配器有一个额外的特性：&lt;strong>适配器可以和其他适配器链起来&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">vec&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">drop&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="sc">&amp;#39;\n&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>会打印什么呢？&lt;/p>
+&lt;p>会打印 4，因为 4 是反向后去掉 2个元素后的第一个元素。&lt;/p>
+&lt;p>在上面的例子中，vector 是 piped（类似于 unix/linux 命令行）传入 reverse 适配器，之后传入 drop 适配器，最后组合出的视图被返回。管道是一种提升可读性的形式。例如&lt;/p>
+&lt;p>&lt;code>vec | foo | bar(3) | baz(7)&lt;/code> 等同于 &lt;code>baz(bar(foo(vec), 3), 7)&lt;/code>&lt;/p>
+&lt;p>注意，访问视图的 0th 元素仍然是惰性的，这也决定了访问时其映射的元素会发生什么。&lt;/p>
+&lt;hr>
+&lt;h3 id="练习">练习&lt;/h3>
+&lt;p>基于 &lt;code>std::vector vec{1, 2, 3, 4, 5, 6}&lt;/code> 创建一个视图，过滤掉所有的奇数，平方剩下的值。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">vec&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="c1">// ...?
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="sc">&amp;#39;\n&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// 应该打印 4
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>完成这个练习，你可以使用 &lt;code>std::views::transform&lt;/code> 以及 &lt;code>std::views::filter&lt;/code> 。他们都接受一个可调用对象。&lt;code>std::views::transform&lt;/code> 会在底层 range 的元素上应用可调用对象，&lt;code>std::views::filter&lt;/code> 会移除不满足可调用对象的元素。&lt;/p>
+&lt;p>答案（我写的）：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span> &lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">square&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[](&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="n">value&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="k">return&lt;/span> &lt;span class="n">value&lt;/span> &lt;span class="o">*&lt;/span> &lt;span class="n">value&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">odd&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">[](&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="kt">int&lt;/span> &lt;span class="n">value&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="k">return&lt;/span> &lt;span class="n">value&lt;/span> &lt;span class="o">%&lt;/span> &lt;span class="mi">2&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="mi">0&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">vec&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">filter&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">odd&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">transform&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">square&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="视图概念">视图概念&lt;/h2>
+&lt;p>视图是特殊的 range，其实例化于 &lt;code>std::ranges::view&lt;/code> 概念，每个通过视图适配器返回的视图都是符合该概念的模型，还有哪些范围概念是由视图建模的？&lt;/p>
+&lt;p>这取决于底层 range 以及视图本身。很容易想到，视图并不会建模比其底层 range 更强的 range 概念（除了他们总是 &lt;code>std::ranges::view&lt;/code> ），他会尽可能多地保留 range 的概念。&lt;/p>
+&lt;p>&lt;strong>例如，&lt;code>std::views::reverse&lt;/code> 返回的视图满足 &lt;code>std::ranges::random_access_range&lt;/code>（以及更弱的模型），前提是底层视图满足该概念，但他永远不会满足 &lt;code>std::ranges::contiguous_range&lt;/code>，因为视图中的第三个元素在内存中并不位于第二个元素之后，而是其之前。&lt;/strong>&lt;/p>
+&lt;p>这可能会震惊一些人，许多视图满足 &lt;code>std::ranges::output_range&lt;/code>，如果其底层 range 满足的话。例如：&lt;strong>非只读视图：&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">vector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">3&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">4&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">5&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mi">6&lt;/span>&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">auto&lt;/span> &lt;span class="n">v&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">vec&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">reverse&lt;/span> &lt;span class="o">|&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">views&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">drop&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">*&lt;/span>&lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="mi">42&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// now vec == {1, 2, 3, 42, 5, 6 } !!
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;hr>
+&lt;h3 id="练习-1">练习&lt;/h3>
+&lt;p>考虑上一道习题（filter + transform），v 可能满足哪些概念？&lt;/p>
+&lt;p>其满足：&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>Concept&lt;/th>
+&lt;th>满足与否&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>std::ranges::input_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::forward_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::bidirectional_range&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::random_access_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::contiguous_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::view&lt;/td>
+&lt;td>√&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::sized_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>std::ranges::output_range&lt;/td>
+&lt;td>&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;p>filter 无法保证元素随机访问，因此并不连续。因为无法在常数时间内知道底层 range 的元素究竟是第几个元素。它不能“跳”过去，他需要遍历底层 range，这当然也代表我们无法在常数时间内知道大小。&lt;/p>
+&lt;p>transform 视图可以 jump，因为它总是对每个独立元素执行相同操作；它也可以保证 sized-ness 因为留下的 size 相同。在这些情况下，filter 都会丢弃这两只属性。换句话说，transform视图 在每次访问时产生新的元素，因此 &lt;code>v&lt;/code> 不是输出范围，你不能向他的元素赋值。这也阻止了 contiguous-range 的建立（如果没有被 filter 处理掉的话，因为按需创建的值根本不在内存中存储）&lt;/p>
+&lt;p>理解这些需要更多练习，在 SeqAn3 中提供了&lt;a class="link" href="https://docs.seqan.de/seqan/3-master-user/group__views.html" target="_blank" rel="noopener"
+>详细的文档&lt;/a>。&lt;/p></description></item><item><title>RAII and the Rule of Zero</title><link>https://demo.stack.jimmycai.com/p/cppcon-2019-raii/</link><pubDate>Sat, 23 Dec 2023 00:00:00 +0000</pubDate><guid>https://demo.stack.jimmycai.com/p/cppcon-2019-raii/</guid><description>&lt;img src="https://demo.stack.jimmycai.com/p/cppcon-2019-raii/cppcon2019-cover.png" alt="Featured image of post RAII and the Rule of Zero" />&lt;p>&lt;a class="link" href="https://www.youtube.com/watch?v=7Qgd9B1KuMQ" target="_blank" rel="noopener"
+>Lecture: Back to Basics: RAII and the Rule of Zero - Arthur O&amp;rsquo;Dwyer - CppCon 2019&lt;/a>&lt;/p>
+&lt;p>&lt;a class="link" href="https://github.com/CppCon/CppCon2019/blob/master/Presentations/back_to_basics_raii_and_the_rule_of_zero/back_to_basics_raii_and_the_rule_of_zero__arthur_odwyer__cppcon_2019.pdf" target="_blank" rel="noopener"
+>Slides PDF&lt;/a>&lt;/p>
+&lt;p>RAII 即：Resource Acquisition Is Initialization，资源获取即初始化。&lt;/p>
+&lt;blockquote>
+&lt;p>不会 RAII 等于不会 C++。 —— Roses&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="资源-resource">资源 Resource&lt;/h2>
+&lt;p>资源代表某些我们需要手动管理的东西。C++ 中常见的资源有：&lt;/p>
+&lt;ul>
+&lt;li>分配的内存（malloc/free, new/delete, new[]/delete[]）&lt;/li>
+&lt;li>POSIX 文件句柄 （open/close）&lt;/li>
+&lt;li>C 文件句柄（fopen/fclose）&lt;/li>
+&lt;li>mutex 锁&lt;/li>
+&lt;li>C++ 线程&lt;/li>
+&lt;/ul>
+&lt;p>我们无需关心资源是否唯一（例如mutex 的设计就是唯一的，而分配的内存显然可以拥有拷贝）&lt;/p>
+&lt;p>我们需要关心的是&lt;strong>程序中需要 &lt;em>显式&lt;/em> 使用某些操作来 &lt;em>释放&lt;/em> 资源&lt;/strong>&lt;/p>
+&lt;p>之后会一直使用堆分配的内存作为例子。&lt;/p>
+&lt;h2 id="以-naive-vector-为例">以 naive vector 为例&lt;/h2>
+&lt;h3 id="基础实现">基础实现&lt;/h3>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="k">class&lt;/span> &lt;span class="nc">NaiveVector&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="kt">int&lt;/span>&lt;span class="o">*&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">size_t&lt;/span> &lt;span class="n">size_&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">public&lt;/span>&lt;span class="o">:&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">:&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">nullptr&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="n">size_&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="kt">void&lt;/span> &lt;span class="nf">push_back&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span> &lt;span class="n">value&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="kt">int&lt;/span>&lt;span class="o">*&lt;/span> &lt;span class="n">new_ptr&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="kt">int&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">size_&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="mi">1&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">copy&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">ptr_&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">ptr_&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="n">size&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">new_ptr&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">delete&lt;/span>&lt;span class="p">[]&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">ptr_&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">new_ptr&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">size_&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">value&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这里 push_back 先分配内存，再将原来的数据进行拷贝，最后写入新的数据，&lt;strong>释放原来位置的内存&lt;/strong>，看起来没有问题。&lt;/p>
+&lt;p>考虑以下使用&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push_back&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">vec&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push_back&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这里，出作用域后，vec 的内存并没有被释放，显然是发生&lt;strong>内存泄漏&lt;/strong>了。&lt;/p>
+&lt;p>也就是说，&lt;strong>需要在 vector 的生命周期结束时，释放其拥有的内存&lt;/strong>。&lt;/p>
+&lt;hr>
+&lt;h3 id="析构函数">析构函数&lt;/h3>
+&lt;p>众所周知，在创建一个类类型的对象时，编译器会调用某个构造函数；在一个类类型对象的生命周期结束时，编译器会调用&lt;strong>析构函数&lt;/strong>。&lt;/p>
+&lt;blockquote>
+&lt;p>在 C++ 中，常用的限制某对象生命周期的方法就是使用一个大括号。&lt;/p>
+&lt;/blockquote>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">vec&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// 调用构造函数
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="p">}&lt;/span> &lt;span class="c1">// 调用析构函数
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="k">class&lt;/span> &lt;span class="nc">NaiveVector&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">...&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">public&lt;/span>&lt;span class="o">:&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">...&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="o">~&lt;/span>&lt;span class="n">NaiveVector&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="k">delete&lt;/span>&lt;span class="p">[]&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">;}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>现在 NaiveVector 就不会在被销毁时发生内存泄漏了。&lt;/p>
+&lt;hr>
+&lt;h3 id="拷贝构造函数">拷贝构造函数&lt;/h3>
+&lt;p>考虑代码：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push_back&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">w&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">//(1)
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>在 (1) 处调用了编译器自动生成的拷贝构造函数，默认的拷贝构造函数只是单纯的拷贝每个成员，这会导致二者持有指向同一块内存的指针，w 析构时内存会被释放，此时 v 访问的是已经被释放的内存。&lt;/p>
+&lt;blockquote>
+&lt;p>(1) 处的操作某些语言称之为“浅拷贝”。&lt;/p>
+&lt;p>需要注意的是，C++ 的设计哲学使得类对象应该具有值语义（标准库组件也是这么做的）。&lt;/p>
+&lt;p>换句话说，对对象进行拷贝应该像拷贝 &lt;code>int&lt;/code> 等类型一样，进行“深拷贝”而不是所谓“浅拷贝”。&lt;/p>
+&lt;p>我其实并不想用在 C++ 中用这两个词语来描述，只是这样更容易理解。&lt;/p>
+&lt;/blockquote>
+&lt;p>这也是为什么 C++ 提供了拷贝构造函数的原因。&lt;strong>你需要他来为资源创建副本&lt;/strong>。&lt;/p>
+&lt;p>我们来实现他：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="k">class&lt;/span> &lt;span class="nc">NaiveVector&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">...&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">public&lt;/span>&lt;span class="o">:&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">:&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">nullptr&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="n">size_&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="o">~&lt;/span>&lt;span class="n">NaiveVector&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="k">delete&lt;/span>&lt;span class="p">[]&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">;}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">...&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="n">rhs&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">ptr_&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="kt">int&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">rhs&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">size_&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">size_&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">rhs&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">size_&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">copy&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">rhs&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">ptr_&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">rhs&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">ptr_&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="n">size_&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="初始化不是赋值">初始化不是赋值&lt;/h3>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">w&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// 调用拷贝构造，创建一个新的对象
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">w&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="n">w&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// 对 w 的赋值，调用赋值运算符
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这个问题似乎困扰了很多初学者，虽然看起来都使用了 &lt;code>=&lt;/code> ，但实际不是一回事。&lt;/p>
+&lt;p>实际很容易理解，初始化时 w 什么都没有，自然需要构造，自然调用的是拷贝构造函数。&lt;/p>
+&lt;p>而在赋值时，w 已经是初始化结束的，或者被使用过的，内部已经存在数据了，可能需要对其进行其他处理，故自然不能调用拷贝构造，需要使用赋值运算符。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;span class="lnt">9
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">v&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">push_back&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">w&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">w&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="n">v&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>编译器默认生成的赋值运算符也是单纯的拷贝赋值所有数据成员，所以我们也需要实现他。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="k">class&lt;/span> &lt;span class="nc">NaiveVector&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">...&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">public&lt;/span>&lt;span class="o">:&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">:&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">nullptr&lt;/span>&lt;span class="p">),&lt;/span> &lt;span class="n">size_&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="o">~&lt;/span>&lt;span class="n">NaiveVector&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="k">delete&lt;/span>&lt;span class="p">[]&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">;}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="n">rhs&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{...}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">...&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="k">operator&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="n">rhs&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="n">copy&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">rhs&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">copy&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">swap&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">*&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">);&lt;/span> &lt;span class="c1">// copy and swap，我们需要实现 swap
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="k">return&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>记住：&lt;/p>
+&lt;ul>
+&lt;li>当你提供了析构函数时，大概率也需要提供一个拷贝构造函数 和 一个拷贝赋值运算符&lt;/li>
+&lt;li>&lt;strong>析构函数的职责是防止资源泄漏，拷贝构造函数的职责是防止 &lt;code>double free&lt;/code>&lt;/strong>&lt;/li>
+&lt;li>这些规则适用于内存等任何你需要手动管理的资源&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;h3 id="the-rule-of-three">The Rule of Three&lt;/h3>
+&lt;p>如果你的类直接管理某些资源（见上文），你需要&lt;strong>提供以下三个成员函数&lt;/strong>：&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>构造函数&lt;/strong>，用于&lt;strong>释放&lt;/strong>资源&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>拷贝构造函数&lt;/strong>，用于&lt;strong>拷贝&lt;/strong>资源，同时防止 double free&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>拷贝赋值运算符&lt;/strong>，&lt;strong>释放&lt;/strong> left-hand 资源，并&lt;strong>拷贝&lt;/strong> right-hand 资源&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>推荐使用 &lt;code>copy-and-swap&lt;/code> 技巧来实现赋值。&lt;/p>
+&lt;p>原因在于，手动实现不能很好的处理嵌套结构中 &lt;em>self-assignment&lt;/em> 的情况。[关于自赋值的检测 &lt;a class="link" href="https://zhuanlan.zhihu.com/p/673069657" target="_blank" rel="noopener"
+>重载operator=要不要检查自赋值？ - mq白&lt;/a>]&lt;/p>
+&lt;p>使用 &lt;code>copy-and-swap&lt;/code> 可以防止你在自赋值一些复杂的嵌套数据结构时爆炸。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="k">operator&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="n">rhs&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="nf">copy&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">rhs&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">copy&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">swap&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">*&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">return&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>先对 rhs 做个拷贝，这样不管是任何的引用关系还是所有权，都不会对我们造成影响。&lt;/p>
+&lt;h2 id="raii-与异常安全">RAII 与异常安全&lt;/h2>
+&lt;p>虽然 RAII 是关于初始化的，但实际上他真正的意思是 &lt;em>&lt;strong>cleanup&lt;/strong>&lt;/em>&lt;/p>
+&lt;p>也许应该 RAII 应该称作：Resource Freeing Is Destruction&lt;/p>
+&lt;p>析构函数帮助我们的程序在异常状态下也能稳定运行。&lt;/p>
+&lt;ul>
+&lt;li>C++支持 try/catch 以及 throw&lt;/li>
+&lt;li>异常抛出时，runtime 在调用者栈中查找一个与异常类型对应的 catch，假设他找到的话……&lt;/li>
+&lt;li>runtime 进行 &lt;em>&lt;strong>stack unwinding&lt;/strong>&lt;/em>。对于每个 throw 和 catch 之间的 local scope 中的变量调用析构函数&lt;/li>
+&lt;li>为避免泄漏，&lt;strong>请在析构函数中清理你的代码&lt;/strong>&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;span class="lnt">9
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="kt">int&lt;/span> &lt;span class="nf">main&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">try&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="kt">int&lt;/span>&lt;span class="o">*&lt;/span> &lt;span class="n">arr&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="kt">int&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mi">4&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">throw&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">runtime_error&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;BAD RAII Example&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">delete&lt;/span>&lt;span class="p">[]&lt;/span> &lt;span class="n">arr&lt;/span>&lt;span class="p">;&lt;/span> &lt;span class="c1">// 无法执行的 cleanup
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="k">catch&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">exception&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="n">ex&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="s">&amp;#34;Exception: &amp;#34;&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="n">ex&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">what&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="sc">&amp;#39;\n&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这里调用了 new，如果发生了异常，那么无法执行 delete，无法 cleanup，就会造成内存泄漏。&lt;/p>
+&lt;p>我们要做的是写一个自己的 RAII 类型&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="k">struct&lt;/span> &lt;span class="nc">RAIIPtr&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="kt">int&lt;/span>&lt;span class="o">*&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">RAIIPtr&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="o">*&lt;/span> &lt;span class="n">p&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="o">:&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">p&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="o">~&lt;/span>&lt;span class="n">RAIIPtr&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="k">delete&lt;/span>&lt;span class="p">[]&lt;/span> &lt;span class="n">ptr_&lt;/span>&lt;span class="p">;}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">};&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="kt">int&lt;/span> &lt;span class="nf">main&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">try&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">RAIIPtr&lt;/span> &lt;span class="n">arr&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="kt">int&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mi">4&lt;/span>&lt;span class="p">];&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">throw&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">runtime_error&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;example&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span> &lt;span class="k">catch&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="k">const&lt;/span> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">exception&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="n">ex&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">cout&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="s">&amp;#34;Exception: &amp;#34;&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="n">ex&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">what&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="o">&amp;lt;&amp;lt;&lt;/span> &lt;span class="sc">&amp;#39;\n&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>把 delete 放入析构函数，发生异常时进行 stack unwinding 会析构 RAIIPtr，此时会正确调用。&lt;/p>
+&lt;p>但实际上 &lt;code>RAIIPtr&lt;/code> 还是很危险，因为他有默认拷贝构造函数（没有遵循 Rule of Three）。&lt;/p>
+&lt;p>如果我们不想让 RAIIPtr 允许被拷贝，那么可以将其拷贝构造函数、拷贝赋值运算符都声明为 &lt;code>= delete&lt;/code> 。&lt;/p>
+&lt;h2 id="the-rule-of-zero">The Rule of Zero&lt;/h2>
+&lt;p>&lt;strong>如果你的类没有 &lt;em>直接&lt;/em> 管理某些资源，只是单纯用了一些库组件，例如 &lt;code>std::vector&lt;/code> 或者 &lt;code>std::string&lt;/code> ，那么你 &lt;em>不&lt;/em> 应该写特殊成员函数， &lt;em>直接声明他们为 &lt;code>default&lt;/code>。&lt;/em>&lt;/strong>&lt;/p>
+&lt;p>让编译器自动生成那些函数即可。&lt;/p>
+&lt;p>你也可以自己写 swap，也许会提高一些性能（编译器会ADL查找非成员函数的 swap）&lt;/p>
+&lt;h2 id="尽可能多选择-rule-of-zero">尽可能多选择 Rule of Zero&lt;/h2>
+&lt;p>以下两种值语义的类都是 well-designed :&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>&lt;em>&lt;strong>Business-logic classes&lt;/strong>&lt;/em>，不管理任何资源，遵循 Rule of Zero&lt;/p>
+&lt;p>他们把管理资源的工作 &lt;strong>委托&lt;/strong> 给数据成员，例如类中使用 std::string, std::vector, std::unique_ptr 等。这些类默认都遵守 RAII。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;em>&lt;strong>Resource-management classes&lt;/strong>&lt;/em>(small, single-purpose), 遵循 Rule of Three&lt;/p>
+&lt;p>构造函数获取资源，析构函数释放资源，在赋值运算符中 &lt;code>copy-and-swap&lt;/code> 以及其他特殊成员函数&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="the-rule-of-five">The Rule of Five&lt;/h2>
+&lt;p>在 C++11 之后，有了移动语义加持，我们引入了 The rule of five.&lt;/p>
+&lt;p>如果你的类直接管理某些资源（例如 new 出的指针），那么你需要&lt;strong>手写五个特殊成员函数&lt;/strong>来确保正确的行为：&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>析构函数&lt;/strong> 释放资源&lt;/li>
+&lt;li>&lt;strong>拷贝构造函数&lt;/strong> 拷贝资源&lt;/li>
+&lt;li>&lt;strong>移动构造函数&lt;/strong> 转义资源的所有权&lt;/li>
+&lt;li>&lt;strong>拷贝赋值运算符&lt;/strong> 释放 left-hand 资源，拷贝 right-hand 资源&lt;/li>
+&lt;li>&lt;strong>移动赋值运算符&lt;/strong> 释放 left-hand 资源，将 right-hand 的资源所有权转移&lt;/li>
+&lt;/ul>
+&lt;blockquote>
+&lt;p>所有权，ownership，C++11之后 std::unique_ptr 等即代表独占所有权，配合移动语义，是一个较为重要的概念。但也有人不太喜欢这种说法。&lt;/p>
+&lt;/blockquote>
+&lt;p>赋值运算符很容易出错，所以活用 &lt;code>copy-and-swap&lt;/code>&lt;/p>
+&lt;p>那么移动赋值运算符怎么写 &lt;code>copy-and-swap&lt;/code> 呢？&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-cpp" data-lang="cpp">&lt;span class="line">&lt;span class="cl">&lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">&amp;amp;&lt;/span> &lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">opeartor&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">NaiveVector&lt;/span>&lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="n">rhs&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">NaiveVector&lt;/span> &lt;span class="nf">copy&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">std&lt;/span>&lt;span class="o">::&lt;/span>&lt;span class="n">move&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">rhs&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="n">copy&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">swap&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">*&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">return&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>Hello Hugo</title><link>https://demo.stack.jimmycai.com/p/hello-world/</link><pubDate>Mon, 18 Dec 2023 00:00:00 +0000</pubDate><guid>https://demo.stack.jimmycai.com/p/hello-world/</guid><description>&lt;img src="https://demo.stack.jimmycai.com/p/hello-world/cover.png" alt="Featured image of post Hello Hugo" />&lt;p>终于，经过几天的折腾，拥有了自己的博客。&lt;/p>
+&lt;p>这里应该会记录关于我的一切，如果我想的话。&lt;/p>
+&lt;p>但重要的自然是 C++。&lt;/p></description></item><item><title>归档</title><link>https://demo.stack.jimmycai.com/archives/</link><pubDate>Sun, 06 Mar 2022 00:00:00 +0000</pubDate><guid>https://demo.stack.jimmycai.com/archives/</guid><description/></item><item><title>搜索</title><link>https://demo.stack.jimmycai.com/search/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://demo.stack.jimmycai.com/search/</guid><description/></item><item><title>友情链接</title><link>https://demo.stack.jimmycai.com/%E5%8F%8B%E6%83%85%E9%93%BE%E6%8E%A5/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://demo.stack.jimmycai.com/%E5%8F%8B%E6%83%85%E9%93%BE%E6%8E%A5/</guid><description/></item></channel></rss>
