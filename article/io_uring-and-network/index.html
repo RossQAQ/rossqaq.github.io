@@ -1,0 +1,485 @@
+<!doctype html><html lang=zh-cn dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="崩溃中"><title>网络编程迷思</title>
+<link rel=canonical href=https://rossqaq.github.io/article/io_uring-and-network/><link rel=stylesheet href=/scss/style.min.d8118f156935b64eca93aca758476adca858d2c47354971654d9bd2933a0e45f.css><meta property='og:title' content="网络编程迷思"><meta property='og:description' content="崩溃中"><meta property='og:url' content='https://rossqaq.github.io/article/io_uring-and-network/'><meta property='og:site_name' content='Roses'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:published_time' content='2024-03-05T00:00:00+00:00'><meta property='article:modified_time' content='2024-03-05T00:00:00+00:00'><meta name=twitter:title content="网络编程迷思"><meta name=twitter:description content="崩溃中"><link rel="shortcut icon" href=/favicon.png></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label=切换菜单>
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu57fe4ea25b3b752b8c24bca0d657f08c_427356_300x0_resize_box_3.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>♉</span></figure><div class=site-meta><h1 class=site-name><a href=/>Roses</a></h1><h2 class=site-description>有限的时间，无尽的痛苦。</h2></div></header><ol class=social-menu><li><a href=https://space.bilibili.com/3078464 target=_blank title=Bilibili rel=me><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-bilibili" width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" stroke="#2c3e50" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 10a4 4 0 014-4h10a4 4 0 014 4v6a4 4 0 01-4 4H7a4 4 0 01-4-4v-6z"/><path d="M8 3l2 3"/><path d="M16 3l-2 3"/><path d="M9 13v-2"/><path d="M15 11v2"/></svg></a></li><li><a href=https://github.com/RossQAQ target=_blank title=Github rel=me><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li><li><a href='https://music.163.com/playlist?id=109571638&amp;userid=93740300' target=_blank title=网易云音乐 rel=me><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-netease-music" width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" stroke="#2c3e50" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 4c-2.93 1.346-5 5.046-5 8.492C4 17 8 20 12 20s8-3 8-7c0-3.513-3.5-5.513-6-5.513S9 9 9 12c0 2 1.5 3 3 3s3-1 3-3c0-3.513-2-4.508-2-6.515.0-3.504 3.5-2.603 4-1.502"/></svg></a></li><li><a href=mailto:rossqaq@outlook.com target=_blank title=邮件 rel=me><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-mail" width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" stroke="#2c3e50" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7l9 6 9-6"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>主页</span></a></li><li><a href=/archives/><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>归档</span></a></li><li><a href=/search/><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>搜索</span></a></li><li><a href=/%E5%8F%8B%E6%83%85%E9%93%BE%E6%8E%A5/><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>友情链接</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>暗色模式</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">目录</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#前言>前言</a></li><li><a href=#io_uring-echo-server>io_uring echo-server</a></li><li><a href=#io_uring-文件-io>io_uring 文件 IO</a><ol><li><a href=#短文章普通的-read足够的-buffer足够的-sqe>短文章，普通的 read，足够的 buffer，足够的 SQE</a></li><li><a href=#短文章普通的-read不足的-buffer足够的-sqe>短文章，普通的 read，不足的 buffer，足够的 SQE</a></li><li><a href=#短文章普通的-read提供的足够的普通-buffer足够的-sqe>短文章，普通的 read，提供的足够的普通 buffer，足够的 SQE</a></li><li><a href=#短文章普通的-read提供的连续的-buffer足够的-sqe>短文章，普通的 read，提供的连续的 buffer，足够的 SQE</a></li><li><a href=#试试-ring-buffer>试试 Ring Buffer</a></li></ol></li><li><a href=#关于协程-task>关于协程 Task</a></li><li><a href=#io_uring-使用思路>io_uring 使用思路</a></li><li><a href=#io_uring-常用函数-reference>io_uring 常用函数 reference</a><ol><li><a href=#io_uring_queue_init>io_uring_queue_init</a></li><li><a href=#io_uring_get_sqe>io_uring_get_sqe</a></li><li><a href=#io_uring_prep_read>io_uring_prep_read</a></li><li><a href=#io_uring_sqe_set_dataio_uring_cqe_get_data>io_uring_sqe_set_data/io_uring_cqe_get_data</a></li><li><a href=#io_uring_wait_cqe>io_uring_wait_cqe</a></li><li><a href=#io_uring_peek_cqe>io_uring_peek_cqe</a></li><li><a href=#io_uring_prep_acceptmultishot-accept>io_uring_prep_accept/multishot accept</a></li><li><a href=#io_uring_cqe_seen>io_uring_cqe_seen</a></li><li><a href=#io_uring_prep_provide_buffers>io_uring_prep_provide_buffers</a></li><li><a href=#io_uring_submit_and_wait>io_uring_submit_and_wait</a></li><li><a href=#io_uring_cq_advance>io_uring_cq_advance</a></li><li><a href=#io_uring_for_each_cqe>io_uring_for_each_cqe</a></li></ol></li><li><a href=#资料出处>资料出处</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><header class=article-category><a href=/categories/io-uring/ style=background-color:#2a9d8f;color:#fff>io_uring
+</a><a href=/categories/cppnotes/ style=background-color:#2a9d8f;color:#fff>C++ 随记
+</a><a href=/categories/techs/ style=background-color:#2a9d8f;color:#fff>技术</a></header><div class=article-title-wrapper><h2 class=article-title><a href=/article/io_uring-and-network/>网络编程迷思</a></h2><h3 class=article-subtitle>崩溃中</h3></div><footer class=article-time><div><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>Mar 05, 2024</time></div><div><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>阅读时长: 10 分钟</time></div></footer></div></header><section class=article-content><h2 id=前言>前言</h2><p>该文章中的一切，不出意外的话会在我个人的服务器测试，</p><p>系统是 fedora 39，linux 内核版本 6.5.6，g++ 13.2，liburing 是最新版。</p><h2 id=io_uring-echo-server>io_uring echo-server</h2><blockquote><p>写于 2024.3.5，此时本人对 io_uring 刚刚懂 API，也不完全懂，网络编程略懂略懂，也许以后自己给自己 code review 吧hhh。</p><p>想了半天，先试试阻塞的 socket 以及 单发的 accept 吧，最简单的开始，且 SQ 大小也足够大，顺便使用最简单的 switch 。</p><p>第一个问题就是，socket 到底用不用非阻塞，参考了一些文章，确实已经异步了，是内核帮你执行，那你阻塞不阻塞有什么区别。此外旧版本 io_uring 似乎对 NONBLOCK socket 还有 bug，因为非阻塞，所以会立刻返回，也会被当做完成事件，确实蛋疼。于是我决定都写阻塞 socket。</p><p>io_uring 自 5.7 之后支持 provided buffer，5.19 之后支持 ring mapped buffer，我决定直接使用，就不用自己思考 buffer 的问题了。确实，性能又高，思维压力又低；buffer 自己写起来估计很折磨，设计思路可以参考 陈硕的圣经。</p><p>但我一想，如果以后写成服务器，那么全局使用 buffer 这种显然更麻烦，好像还不如自己设计 buffer</p></blockquote><blockquote><p>现在是 2024.3.20 学了一堆，感觉会写了，协程怎么设计也有点思路了。</p><p>首先好像似乎得用非阻塞 socket？但我决定用阻塞的看看会发生什么，其次我发现想写个没有内存泄漏的还真挺难。</p></blockquote><blockquote><p>现在是 2024.3.25 由于过于崩溃，我决定从简单的读文件写起……写个 echo server 全bug 受不了。</p></blockquote><h2 id=io_uring-文件-io>io_uring 文件 IO</h2><blockquote><p>之前搬运的文章都是 readv，我这里直接用 read 得了。做一下测试，读两个文件</p><p>一个 8500 字节，一个 330 字节，文章都是 rust 的官方教程英文版。</p></blockquote><h3 id=短文章普通的-read足够的-buffer足够的-sqe>短文章，普通的 read，足够的 buffer，足够的 SQE</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>read_to_stdout</span><span class=p>(</span><span class=n>io_uring</span><span class=o>&amp;</span> <span class=n>uring</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_read</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_output</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;</span> <span class=n>buf</span><span class=p>(</span><span class=mi>512</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe</span><span class=o>*</span> <span class=n>sqe</span> <span class=o>=</span> <span class=n>io_uring_get_sqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_prep_read</span><span class=p>(</span><span class=n>sqe</span><span class=p>,</span> <span class=n>fd_read</span><span class=p>,</span> <span class=n>buf</span><span class=p>.</span><span class=n>data</span><span class=p>(),</span> <span class=mi>512</span><span class=p>,</span> <span class=mi>0</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe_set_data64</span><span class=p>(</span><span class=n>sqe</span><span class=p>,</span> <span class=mi>1001</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_submit</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_cqe</span><span class=o>*</span> <span class=n>cqe</span><span class=p>{</span> <span class=k>nullptr</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_wait_cqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=o>&amp;</span><span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=k>auto</span> <span class=n>cqe_data</span> <span class=o>=</span> <span class=n>io_uring_cqe_get_data64</span><span class=p>(</span><span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=n>buf</span><span class=p>.</span><span class=n>data</span><span class=p>()</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;---------------------------------</span><span class=se>\n</span><span class=s>&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;Bytes: &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;  CQE data: &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>cqe_data</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_cqe_seen</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>嗯，完美，非常的基础，一切正常。</p></blockquote><h3 id=短文章普通的-read不足的-buffer足够的-sqe>短文章，普通的 read，不足的 buffer，足够的 SQE</h3><blockquote><p>思考了一下，read 到文件尾肯定是返回 0，那么能不能直接一次 submit 全读完呢。</p><p>那肯定不行，得足够的 buffer 才能一次 submit 完啊。还是一次一次读吧。</p><p>说起来 rust 和 cpp 这 vec 初始化的参数是反着来的真是蛋疼。</p></blockquote><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>read_to_stdout_lessbuf</span><span class=p>(</span><span class=n>io_uring</span><span class=o>&amp;</span> <span class=n>uring</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_read</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_output</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;</span> <span class=n>buf</span><span class=p>(</span><span class=mi>128</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=kt>int</span> <span class=n>idx</span> <span class=o>=</span> <span class=mi>1000</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=n>size_t</span> <span class=n>offset</span> <span class=o>=</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>for</span> <span class=p>(;;)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_cqe</span><span class=o>*</span> <span class=n>cqe</span><span class=p>{</span> <span class=k>nullptr</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>        <span class=n>std</span><span class=o>::</span><span class=n>fill</span><span class=p>(</span><span class=n>buf</span><span class=p>.</span><span class=n>begin</span><span class=p>(),</span> <span class=n>buf</span><span class=p>.</span><span class=n>end</span><span class=p>(),</span> <span class=mi>0</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_sqe</span><span class=o>*</span> <span class=n>sqe</span> <span class=o>=</span> <span class=n>io_uring_get_sqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_prep_read</span><span class=p>(</span><span class=n>sqe</span><span class=p>,</span> <span class=n>fd_read</span><span class=p>,</span> <span class=n>buf</span><span class=p>.</span><span class=n>data</span><span class=p>(),</span> <span class=mi>127</span><span class=p>,</span> <span class=n>offset</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_sqe_set_data64</span><span class=p>(</span><span class=n>sqe</span><span class=p>,</span> <span class=n>idx</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_submit</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=n>offset</span> <span class=o>+=</span> <span class=mi>127</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=n>idx</span> <span class=o>+=</span> <span class=mi>1</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_wait_cqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=o>&amp;</span><span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=k>auto</span> <span class=n>cqe_data</span> <span class=o>=</span> <span class=n>io_uring_cqe_get_data64</span><span class=p>(</span><span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=p>(</span><span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span> <span class=o>==</span> <span class=mi>0</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;Complete.</span><span class=se>\n</span><span class=s>&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=k>break</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=n>buf</span><span class=p>.</span><span class=n>data</span><span class=p>()</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;---------------------------------</span><span class=se>\n</span><span class=s>&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;Bytes: &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;  CQE data: &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>cqe_data</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_cqe_seen</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>也没什么问题，注意 cqe 要及时销毁就行了。</p><p>感觉在网络 IO 内，buffer 不够很正常，所以感觉得思考下。</p></blockquote><h3 id=短文章普通的-read提供的足够的普通-buffer足够的-sqe>短文章，普通的 read，提供的足够的普通 buffer，足够的 SQE</h3><blockquote><p>这是 io_uring 的特性，把 buffer 提供给内核。API: io_uring_prep_provide_buffers，kernel 5.7 之后可用</p><p>我到这里发现我的服务器 2G 内存有点吃紧，开 vscode 直接吃600MB，还剩1G</p></blockquote><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>read_to_stdout_prepbuf</span><span class=p>(</span><span class=n>io_uring</span><span class=o>&amp;</span> <span class=n>uring</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_read</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_output</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>struct</span> <span class=nc>Buffer</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=kt>char</span><span class=o>*</span> <span class=n>addr_</span><span class=p>{</span> <span class=k>nullptr</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>        <span class=n>Buffer</span><span class=p>(</span><span class=n>size_t</span> <span class=n>size</span> <span class=o>=</span> <span class=mi>512</span><span class=p>)</span> <span class=p>{</span> <span class=n>addr_</span> <span class=o>=</span> <span class=k>new</span> <span class=kt>char</span><span class=p>[</span><span class=n>size</span><span class=p>]();</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=o>~</span><span class=n>Buffer</span><span class=p>()</span> <span class=p>{</span> <span class=k>delete</span><span class=p>[]</span> <span class=n>addr_</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=p>};</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>struct</span> <span class=nc>GroupBuffer</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=kt>int</span> <span class=n>group_id_</span><span class=p>{</span> <span class=mi>1</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>        <span class=n>Buffer</span> <span class=n>bufs</span><span class=p>[</span><span class=mi>1</span><span class=p>];</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>        <span class=kt>char</span><span class=o>*</span> <span class=n>get_buf_address</span><span class=p>()</span> <span class=p>{</span> <span class=k>return</span> <span class=n>bufs</span><span class=p>[</span><span class=mi>0</span><span class=p>].</span><span class=n>addr_</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=kt>int</span> <span class=n>get_group_id</span><span class=p>()</span> <span class=p>{</span> <span class=k>return</span> <span class=n>group_id_</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=n>data</span><span class=p>()</span> <span class=p>{</span> <span class=k>return</span> <span class=n>bufs</span><span class=p>[</span><span class=mi>0</span><span class=p>].</span><span class=n>addr_</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=p>};</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>GroupBuffer</span> <span class=n>buf</span><span class=p>{};</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe</span><span class=o>*</span> <span class=n>buf_sqe</span> <span class=o>=</span> <span class=n>io_uring_get_sqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe_set_data64</span><span class=p>(</span><span class=n>buf_sqe</span><span class=p>,</span> <span class=mi>1234</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_prep_provide_buffers</span><span class=p>(</span><span class=n>buf_sqe</span><span class=p>,</span> <span class=n>buf</span><span class=p>.</span><span class=n>get_buf_address</span><span class=p>(),</span> <span class=mi>512</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span> <span class=n>buf</span><span class=p>.</span><span class=n>get_group_id</span><span class=p>(),</span> <span class=mi>0</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe</span><span class=o>*</span> <span class=n>read_sqe</span> <span class=o>=</span> <span class=n>io_uring_get_sqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_prep_read</span><span class=p>(</span><span class=n>read_sqe</span><span class=p>,</span> <span class=n>fd_read</span><span class=p>,</span> <span class=k>nullptr</span><span class=p>,</span> <span class=mi>512</span><span class=p>,</span> <span class=mi>0</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    
+</span></span><span class=line><span class=cl>    <span class=c1>// 重要的两行：
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>io_uring_sqe_set_flags</span><span class=p>(</span><span class=n>read_sqe</span><span class=p>,</span> <span class=n>IOSQE_BUFFER_SELECT</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>read_sqe</span><span class=o>-&gt;</span><span class=n>buf_group</span> <span class=o>=</span> <span class=mi>1</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=c1>//////////////////////////
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=n>io_uring_sqe_set_data64</span><span class=p>(</span><span class=n>read_sqe</span><span class=p>,</span> <span class=mi>1005</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_submit_and_wait</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=mi>2</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_cqe</span><span class=o>*</span> <span class=n>cqe</span><span class=p>{</span> <span class=k>nullptr</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>    <span class=kt>unsigned</span> <span class=n>head</span><span class=p>{};</span>
+</span></span><span class=line><span class=cl>    <span class=kt>unsigned</span> <span class=n>i</span><span class=p>{};</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_for_each_cqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=n>head</span><span class=p>,</span> <span class=n>cqe</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>auto</span> <span class=n>cqe_data</span> <span class=o>=</span> <span class=n>io_uring_cqe_get_data64</span><span class=p>(</span><span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=p>(</span><span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span> <span class=o>&lt;</span> <span class=mi>0</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;Error: &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>strerror</span><span class=p>(</span><span class=o>-</span><span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span><span class=p>)</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=k>if</span> <span class=p>(</span><span class=n>cqe_data</span> <span class=o>==</span> <span class=mi>1234</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>                <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;providing buffer.</span><span class=se>\n</span><span class=s>&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=p>}</span>
+</span></span><span class=line><span class=cl>            <span class=k>if</span> <span class=p>(</span><span class=n>cqe_data</span> <span class=o>==</span> <span class=mi>1005</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>                <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=n>buf</span><span class=p>.</span><span class=n>data</span><span class=p>()</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>                <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;---------------------------------</span><span class=se>\n</span><span class=s>&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>                <span class=n>std</span><span class=o>::</span><span class=n>cout</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;Bytes: &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span> <span class=o>&lt;&lt;</span> <span class=s>&#34;  CQE data: &#34;</span> <span class=o>&lt;&lt;</span> <span class=n>cqe_data</span> <span class=o>&lt;&lt;</span> <span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=n>i</span><span class=o>++</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_cq_advance</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=n>i</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>折腾半天，总之摸清楚了提供buffer 的用法。</p></blockquote><h3 id=短文章普通的-read提供的连续的-buffer足够的-sqe>短文章，普通的 read，提供的连续的 buffer，足够的 SQE</h3><blockquote><p>如果文件比 buffer 大？但是 buffer 总量足够？</p></blockquote><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span><span class=lnt>54
+</span><span class=lnt>55
+</span><span class=lnt>56
+</span><span class=lnt>57
+</span><span class=lnt>58
+</span><span class=lnt>59
+</span><span class=lnt>60
+</span><span class=lnt>61
+</span><span class=lnt>62
+</span><span class=lnt>63
+</span><span class=lnt>64
+</span><span class=lnt>65
+</span><span class=lnt>66
+</span><span class=lnt>67
+</span><span class=lnt>68
+</span><span class=lnt>69
+</span><span class=lnt>70
+</span><span class=lnt>71
+</span><span class=lnt>72
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=k>struct</span> <span class=nc>GroupBuffer</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=kt>int</span> <span class=n>group_id_</span><span class=p>{};</span>
+</span></span><span class=line><span class=cl>    <span class=kt>char</span><span class=o>*</span> <span class=n>bufs_</span><span class=p>{</span> <span class=k>nullptr</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>GroupBuffer</span><span class=p>(</span><span class=kt>int</span> <span class=n>grp_id</span><span class=p>,</span> <span class=n>size_t</span> <span class=n>buffer_cnt</span> <span class=o>=</span> <span class=mi>1</span><span class=p>,</span> <span class=n>size_t</span> <span class=n>buffer_size</span> <span class=o>=</span> <span class=mi>64</span><span class=p>)</span> <span class=o>:</span> <span class=n>group_id_</span><span class=p>(</span><span class=n>grp_id</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=n>bufs_</span> <span class=o>=</span> <span class=k>new</span> <span class=kt>char</span><span class=p>[</span><span class=n>buffer_cnt</span> <span class=o>*</span> <span class=n>buffer_size</span><span class=p>]();</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=o>~</span><span class=n>GroupBuffer</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=p>(</span><span class=n>bufs_</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=k>delete</span><span class=p>[]</span> <span class=n>bufs_</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=kt>char</span><span class=o>*</span> <span class=nf>get_buf_address</span><span class=p>()</span> <span class=k>const</span> <span class=p>{</span> <span class=k>return</span> <span class=n>bufs_</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=kt>int</span> <span class=nf>get_group_id</span><span class=p>()</span> <span class=k>const</span> <span class=p>{</span> <span class=k>return</span> <span class=n>group_id_</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=k>const</span> <span class=kt>char</span><span class=o>*</span> <span class=nf>data</span><span class=p>()</span> <span class=k>const</span> <span class=p>{</span> <span class=k>return</span> <span class=n>bufs_</span><span class=p>;</span> <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>};</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kr>inline</span> <span class=kt>void</span> <span class=nf>provide_buf</span><span class=p>(</span><span class=n>io_uring</span><span class=o>&amp;</span> <span class=n>uring</span><span class=p>,</span> <span class=k>const</span> <span class=n>GroupBuffer</span><span class=o>&amp;</span> <span class=n>buf</span><span class=p>,</span> <span class=kt>int</span> <span class=n>bid</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe</span><span class=o>*</span> <span class=n>buf_sqe</span> <span class=o>=</span> <span class=n>io_uring_get_sqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe_set_data64</span><span class=p>(</span><span class=n>buf_sqe</span><span class=p>,</span> <span class=mi>1234</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_prep_provide_buffers</span><span class=p>(</span><span class=n>buf_sqe</span><span class=p>,</span> <span class=n>buf</span><span class=p>.</span><span class=n>get_buf_address</span><span class=p>(),</span> <span class=mi>128</span><span class=p>,</span> <span class=mi>10</span><span class=p>,</span> <span class=n>buf</span><span class=p>.</span><span class=n>get_group_id</span><span class=p>(),</span> <span class=n>bid</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kr>inline</span> <span class=kt>void</span> <span class=nf>read_request</span><span class=p>(</span><span class=n>io_uring</span><span class=o>&amp;</span> <span class=n>uring</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_read</span><span class=p>,</span> <span class=kt>int</span> <span class=n>grp_id</span><span class=p>,</span> <span class=n>size_t</span> <span class=n>offset</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe</span><span class=o>*</span> <span class=n>read_sqe</span> <span class=o>=</span> <span class=n>io_uring_get_sqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_prep_read</span><span class=p>(</span><span class=n>read_sqe</span><span class=p>,</span> <span class=n>fd_read</span><span class=p>,</span> <span class=k>nullptr</span><span class=p>,</span> <span class=mi>512</span><span class=p>,</span> <span class=n>offset</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe_set_flags</span><span class=p>(</span><span class=n>read_sqe</span><span class=p>,</span> <span class=n>IOSQE_BUFFER_SELECT</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>read_sqe</span><span class=o>-&gt;</span><span class=n>buf_group</span> <span class=o>=</span> <span class=n>grp_id</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>    <span class=n>io_uring_sqe_set_data64</span><span class=p>(</span><span class=n>read_sqe</span><span class=p>,</span> <span class=mi>1005</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kr>inline</span> <span class=kt>void</span> <span class=nf>read_to_stdout_prepbuf</span><span class=p>(</span><span class=n>io_uring</span><span class=o>&amp;</span> <span class=n>uring</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_read</span><span class=p>,</span> <span class=kt>int</span> <span class=n>fd_output</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=n>GroupBuffer</span> <span class=n>buf</span><span class=p>{</span> <span class=mi>1</span><span class=p>,</span> <span class=mi>10</span><span class=p>,</span> <span class=mi>128</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=n>provide_buf</span><span class=p>(</span><span class=n>uring</span><span class=p>,</span> <span class=n>buf</span><span class=p>,</span> <span class=mi>0</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>read_request</span><span class=p>(</span><span class=n>uring</span><span class=p>,</span> <span class=n>fd_read</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span> <span class=mi>0</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=n>size_t</span> <span class=n>offset</span><span class=p>{};</span>
+</span></span><span class=line><span class=cl>    <span class=k>for</span> <span class=p>(;;)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_submit</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_cqe</span><span class=o>*</span> <span class=n>cqe</span><span class=p>{</span> <span class=k>nullptr</span> <span class=p>};</span>
+</span></span><span class=line><span class=cl>        <span class=kt>unsigned</span> <span class=n>head</span><span class=p>{};</span>
+</span></span><span class=line><span class=cl>        <span class=kt>unsigned</span> <span class=n>i</span><span class=p>{};</span>
+</span></span><span class=line><span class=cl>        <span class=kt>bool</span> <span class=n>finish</span><span class=p>{};</span>
+</span></span><span class=line><span class=cl>        <span class=n>io_uring_for_each_cqe</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=n>head</span><span class=p>,</span> <span class=n>cqe</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=k>auto</span> <span class=n>cqe_data</span> <span class=o>=</span> <span class=n>io_uring_cqe_get_data64</span><span class=p>(</span><span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>            <span class=k>if</span> <span class=p>(</span><span class=n>cqe_data</span> <span class=o>==</span> <span class=mi>1234</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>                <span class=n>Debug</span><span class=p>(),</span> <span class=s>&#34;Providing buffer.&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=p>}</span>
+</span></span><span class=line><span class=cl>            <span class=k>if</span> <span class=p>(</span><span class=n>cqe_data</span> <span class=o>==</span> <span class=mi>1005</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>                <span class=k>if</span> <span class=p>(</span><span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span> <span class=o>&gt;</span> <span class=mi>0</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>                    <span class=k>auto</span> <span class=n>bid</span> <span class=o>=</span> <span class=n>cqe</span><span class=o>-&gt;</span><span class=n>flags</span> <span class=o>&gt;&gt;</span> <span class=n>IORING_CQE_BUFFER_SHIFT</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>                    <span class=n>offset</span> <span class=o>+=</span> <span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>                    <span class=n>Debug</span><span class=p>(),</span> <span class=n>bid</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>                    <span class=n>provide_buf</span><span class=p>(</span><span class=n>uring</span><span class=p>,</span> <span class=n>buf</span><span class=p>,</span> <span class=n>bid</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>                    <span class=n>read_request</span><span class=p>(</span><span class=n>uring</span><span class=p>,</span> <span class=n>fd_read</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span> <span class=n>offset</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>                <span class=p>}</span> <span class=k>else</span> <span class=k>if</span> <span class=p>(</span><span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span> <span class=o>==</span> <span class=mi>0</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>                    <span class=n>Debug</span><span class=p>(),</span> <span class=s>&#34;Complete.&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>                    <span class=n>finish</span> <span class=o>=</span> <span class=nb>true</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>                <span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>                    <span class=n>Debug</span><span class=p>(),</span> <span class=s>&#34;Error: </span><span class=se>\n</span><span class=s>&#34;</span><span class=p>,</span> <span class=n>strerror</span><span class=p>(</span><span class=o>-</span><span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>                <span class=p>}</span>
+</span></span><span class=line><span class=cl>            <span class=p>}</span>
+</span></span><span class=line><span class=cl>            <span class=n>i</span><span class=o>++</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=n>io_uring_cq_advance</span><span class=p>(</span><span class=o>&amp;</span><span class=n>uring</span><span class=p>,</span> <span class=n>i</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=p>(</span><span class=n>finish</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=k>break</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=n>Debug</span><span class=p>(),</span> <span class=n>buf</span><span class=p>.</span><span class=n>data</span><span class=p>();</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>好像没什么特别的。Debug() 是自己封装的，方便输出查看</p></blockquote><h3 id=试试-ring-buffer>试试 Ring Buffer</h3><hr><h2 id=关于协程-task>关于协程 Task</h2><ol><li><p>Task 应该为惰性，这个很简单，promise 直接 initial_suspend return std::suspend_always</p></li><li><p>本身可以被 co_await。需要 Task 本身是个 awaiter，可以在 Task 中重载 co_await 运算符，然后在 Task 内写一个结构体，通过 co_await 返回。</p></li><li><p>Task 本身被 co_await 后，利用 await_suspend 进行灵活调度，将控制权返回给 caller/最开始的函数，那么就需要保存 caller 的句柄。这个其实调用 co_await 的 caller 会自动传入 handle 作为参数。<strong>区分好 caller 和 callee</strong></p></li><li><p>返回的值可以用 std::optional，如果发生异常，需要存入 std::exception_ptr 然后在 unhandled_exception 重新抛出</p></li><li><p>考虑 std::variant 替代 std::optional，存储正常的返回值，和 std::exception_ptr，可以结合 emplace</p></li><li><p>Task 和 Promise 都定义为泛型，这样就可以支持任意的返回类型了。对 void 进行特化。注意待决名</p></li><li><p>支持 sleep 操作，传统 sleep 会阻塞，协程 sleep 显然可以干别的，比如支持个超时。</p></li></ol><p>但显然不能真睡，需要个调度器，在一堆协程里面恢复其他的协程。</p><p>那么调度器，最简单的实现就是，队列，协程全部默认加入调度器。</p><p>Task 可以写成隐式转换为 coro handle，这样放入调度器比较方便</p><p>睡的协程要加入到调度器的存储结构，时间+句柄。</p><p>可以搞一个小顶堆</p><p>之后，Task 可以支持 <code>when_all</code> ，支持参数内的 Task 一起执行。如果有返回值，可以用 tuple+结构化绑定接返回值。配合模板，实现任意数量的参数</p><p>之后，可以实现 <code>when_any</code></p><h2 id=io_uring-使用思路>io_uring 使用思路</h2><ol><li>声明 io_uring</li><li>初始化：io_uring_queue_init</li><li>声明 sqe，</li><li>获取 sqe：io_uring_get_sqe</li><li>准备操作：io_uring_prep_foo</li><li>绑定 data：io_uring_sqe_set_data</li><li>submit</li><li>wait/peek CQE</li><li>使用 io_uring_cqe_get_data 获取数据</li><li>检查 cqe -> res 错误码</li><li>io_uring_cqe_seen 释放 cqe</li><li>io_uring_queue_exit()</li></ol><h2 id=io_uring-常用函数-reference>io_uring 常用函数 reference</h2><h3 id=io_uring_queue_init>io_uring_queue_init</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>int</span> <span class=nf>io_uring_queue_init</span><span class=p>(</span><span class=kt>unsigned</span> <span class=n>entries</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                        <span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                        <span class=kt>unsigned</span> <span class=n>flags</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>该函数调用 syscall <code>io_uring_setup</code> 来初始化 SQ 以及 CQ，SQ 的 entry 数量至少为参数 <code>entries</code>，之后会 mmap 结果 fd 到应用和 kernel 的共享内存。</p><p>返回值：0成功，并且 参数 <code>ring</code> 会指向共享内存；-errno 失败。</p><p>CQ 默认大小是 SQ 的两倍，对于文件 io 肯定足够，但是对于网络不一定。SQ 的 entries 数目<strong>仅仅是限制一次提交给内核的 entry 数目</strong>，并不是限制 uring 支持的正在进行请求数。</p><p>如果 CQ ring 溢出，也就是说应用程序的处理能力跟不上 CQ ring 了，那么如果内核支持 <code>IORING_FEAT_NODROP</code> 那么 ring 会进入 CQ 溢出状态。否则会扔掉 CQEs 然后增加 <code>io_uring</code> 中 <code>cq.koverflow</code> 的大小（按照扔掉 CQEs 的数量增加）。溢出状态通过 SQ ring 的 flag <code>IORING_SQ_CQ_OVERFLOW</code> 指定，除非内核没有内存用了，不然不会丢弃 entry。<strong>但你应该避免其溢出，可以使用 <code>io_uring_params</code> 中的 <code>cq_entries</code> 指定 CQ entry 数量，会自动近似为 2 的整幂次数。</strong></p><p>flags 和 syscall <code>io_uring_setup</code> 相同，详见 <a class=link href=https://man.archlinux.org/man/io_uring_setup.2.en target=_blank rel=noopener>io_uring_setup(2)</a></p><hr><h3 id=io_uring_get_sqe>io_uring_get_sqe</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=k>struct</span> <span class=nc>io_uring_sqe</span> <span class=o>*</span><span class=nf>io_uring_get_sqe</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>该函数会从 <code>ring</code> 中获取 SQ 的下一个可用的 SQE</p><p>返回值：成功返回指向 SQE 的指针；失败返回 NULL。</p><p>如果该函数执行成功，那么下一步就是使用 io_uring_prep_foo() 函数对 SQE 进行操作，之后提交。</p><p>注意，不管是 <code>io_uring_get_sqe()</code> 还是 <code>io_uring_prep_foo()</code> 都不会设置（或清空） SQE 的 <strong>user_data</strong> 字段。所以 caller <strong>必须在提交前调用 <code>io_uring_sqe_set_data()</code> 函数</strong>。</p><p>如果该函数返回 NULL，则 SQ ring 已满，必须提交进行处理，之后才能分配新的 entry。</p><hr><h3 id=io_uring_prep_read>io_uring_prep_read</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>io_uring_prep_read</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring_sqe</span> <span class=o>*</span><span class=n>sqe</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                        <span class=kt>int</span> <span class=n>fd</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                        <span class=kt>void</span> <span class=o>*</span><span class=n>buf</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                        <span class=kt>unsigned</span> <span class=n>nbytes</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                        <span class=n>__u64</span> <span class=n>offset</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>io_uring_prep_foo 系列都是准备 IO 请求。</p><p>CQE 的 <em>res</em> 字段会包括操作的结果，io_uring 永远不会使用 errno，都是使用 <em>-errno</em>，存于 CQE 的 <em>res</em> 字段。</p><hr><h3 id=io_uring_sqe_set_dataio_uring_cqe_get_data>io_uring_sqe_set_data/io_uring_cqe_get_data</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>io_uring_sqe_set_data</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring_sqe</span> <span class=o>*</span><span class=n>sqe</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                           <span class=kt>void</span> <span class=o>*</span><span class=n>user_data</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=nf>io_uring_sqe_set_data64</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring_sqe</span> <span class=o>*</span><span class=n>sqe</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                             <span class=n>__u64</span> <span class=n>data</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=o>*</span><span class=nf>io_uring_cqe_get_data</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring_cqe</span> <span class=o>*</span><span class=n>cqe</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=n>__u64</span> <span class=nf>io_uring_cqe_get_data64</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring_cqe</span> <span class=o>*</span><span class=n>cqe</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>该函数存储一个含有 SQE 的指针 <em>user_data</em></p><p>在用户使用过 <code>io_uring_get_sqe()</code> 后，需要使用该函数把 user_data 和 SQE 相关联。完成后，可以调用函数 <code>io_uring_cqe_get_data()</code> 来获取提交的数据指针中的值。</p><p><strong>内核只是单纯拷贝 user_data，什么都不会动</strong>，你要在 submit 前先提交绑定请求；这个函数是用来给你识别你的请求的，因为 io_uring 并不是按提交顺序执行后进入 CQ，而是谁执行完谁就先进 CQ。</p><hr><h3 id=io_uring_wait_cqe>io_uring_wait_cqe</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>int</span> <span class=nf>io_uring_wait_cqe</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                      <span class=k>struct</span> <span class=nc>io_uring_cqe</span> <span class=o>**</span><span class=n>cqe_ptr</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>该函数等待 参数 <code>ring</code> 中的 IO completion。如果调用时已经完成，那么不会等待，<code>cqe_ptr</code> 会被填写。</p><p>在调用 <code>io_uring_submit()</code> 后，应用程序可以通过 <code>io_uring_wait_cqe</code> 获取 completion。</p><p>返回值：成功返回0，填写 cqe_ptr；失败返回 -errno 表明正在等待 CQE。</p><hr><h3 id=io_uring_peek_cqe>io_uring_peek_cqe</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>int</span> <span class=nf>io_uring_peek_cqe</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                      <span class=k>struct</span> <span class=nc>io_uring_cqe</span> <span class=o>**</span><span class=n>cqe_ptr</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>该函数检查 <code>ring</code> 并在可以消费时返回一个 IO Completion。如果成功返回，那么 <code>cqe_ptr</code> 会填充有效的 CQE。</p><p>这个函数不会进入内核等待 event，只会在 CQ 完成 CQE 时返回</p><p>返回值：成功返回0，并填充 <code>cqe_ptr</code>；失败返回 -EAGAIN</p><hr><h3 id=io_uring_prep_acceptmultishot-accept>io_uring_prep_accept/multishot accept</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>io_uring_prep_accept</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring_sqe</span> <span class=o>*</span><span class=n>sqe</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                          <span class=kt>int</span> <span class=n>sockfd</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                          <span class=k>struct</span> <span class=nc>sockaddr</span> <span class=o>*</span><span class=n>addr</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                          <span class=n>socklen_t</span> <span class=o>*</span><span class=n>addrlen</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                          <span class=kt>int</span> <span class=n>flags</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kt>void</span> <span class=nf>io_uring_prep_multishot_accept</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring_sqe</span> <span class=o>*</span><span class=n>sqe</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                    <span class=kt>int</span> <span class=n>sockfd</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                    <span class=k>struct</span> <span class=nc>sockaddr</span> <span class=o>*</span><span class=n>addr</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                    <span class=n>socklen_t</span> <span class=o>*</span><span class=n>addrlen</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                    <span class=kt>int</span> <span class=n>flags</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p><code>io_uring_prep_accept(...)</code> 用于准备一个请求，向 SQ 提交一个 accept 类似的请求，在 <code>sock_fd</code> 上准备 accept 连接，地址如参数所示。</p><p>此外，kernel 5.19 后支持连发 (<code>multishot</code>) accept，普通的 accept 一次只能接受一个连接，产生一个 CQE，之后就必须重新提交请求了，但是 multishot 版本中，内核会自动帮你保持监听状态，下一次收到连接时依然会产生 CQE。</p><p>要注意的是，在连发版本中写 <code>addr</code>, <code>addrlen</code> 可能意义不大，因为每个接受的连接都使用相同的值，这意味着写入 <code>addr</code> 的数据可能会在被处理前就被新链接覆盖掉。</p><p>连发请求一般会一直有效，除非</p><ul><li>被取消，例如使用 <code>io_uring_prep_cancel()</code> 这样的函数</li><li>本身遇到错误</li></ul><p>如果连发请求还有效，那么 CQE 的 flags 字段会包含 <code>IORING_CQE_F_MORE</code>。如果没有该标志，那么连发请求失效，程序会重新提交新请求。</p><p>对于</p><ul><li><code>io_uring_prep_accept</code>, CQE 中的 <em>res</em> 保存了连接的 socket。</li><li>对于 <code>io_uring_prep_multishot_accept</code>，可能需要配合 linux <code>getpeername()</code> 来获取客户端地址。</li></ul><hr><h3 id=io_uring_cqe_seen>io_uring_cqe_seen</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>io_uring_cqe_seen</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                       <span class=k>struct</span> <span class=nc>io_uring_cqe</span> <span class=o>*</span><span class=n>cqe</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p><strong>该函数用于标记 <code>ring</code> 的 <code>cqe</code> 已经被消耗掉了。</strong></p><p>在 caller 使用 <code>io_uring_submit</code> 提交了请求后，可以通过 <code>io_uring_wait_cqe</code> 以及 <code>io_uring_peek_cqe</code> 来获取当前结果，<strong>并且需要将其标记为已经消耗，这样这个 CQE slot 才能被复用。</strong></p><hr><h3 id=io_uring_prep_provide_buffers>io_uring_prep_provide_buffers</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>io_uring_prep_provide_buffers</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring_sqe</span> <span class=o>*</span><span class=n>sqe</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                   <span class=kt>void</span> <span class=o>*</span><span class=n>addr</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                   <span class=kt>int</span> <span class=n>len</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                   <span class=kt>int</span> <span class=n>nr</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                   <span class=kt>int</span> <span class=n>bgid</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                                   <span class=kt>int</span> <span class=n>bid</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>该函数准备一个给 kernel 提供 buffer 的请求。<code>sqe</code> 设置为消费 <code>nr</code> 数量的 <code>len</code> 长度的 buffer，起始地址为 <code>addr</code>，被唯一标识 buffer group ID <code>bgid</code>，并且从 <code>bid</code> 开始顺序排列。</p><p>通过设置 SQE 中的 <code>buf_group</code> 字段，然后在 <code>SQE</code> <code>flags</code> 中设置 <code>IOSQE_BUFFER_SELECT</code> 实现。</p><p>如果使用该方法来提供 buffer，那么<strong>不应该在地址字段中提供缓冲区</strong>，直接设置为 NULL 即可。应该在 gourp ID 中进行设置来匹配一个之前提交给内核的 buffer。之后 kernel 会在该 group 中进行 IO。完成后，<code>CQE</code> <code>flags</code> 将会填充 <code>IORING_CQE_F_BUFFER</code>，且所选取的<strong>缓冲区 ID 会在 <code>flags</code> 的上16位</strong></p><p>不同的 buffer group ID 可以让应用程序用来识别不同的大小和类型的 buffer。一旦 buffer 被消费，io_uring 就不再使用它。必要的话需要<strong>重新提供一次</strong>，<strong>否则你可以手动销毁</strong>。</p><p>buffer IDs 内部通过 <code>bid</code> 进行升序排列。<strong>如果提供了 16 个 buffer，且初始 <code>bid</code> 是 0，那么 buffer 的 id 范围是 0~15.</strong></p><p>buffer IDs 的取值范围是 0~65535，因为只有 <code>CQE</code> 的上 16 位用作记录。如果添加的 buffer ID 太大会 -E2BIG，在转换为 16bit 值时会 -EINVAL。</p><p>并不是所有的请求都支持该操作，**只对从内核接受数据的操作有效，**而向内核写数据时不能这么干。目前，支持任何的 file 读或者 socket 接收请求。否则 CQE 中会返回 -EINVAL。</p><p>此外，该操作支持 iovec，但前提是你只提供了一个 iovec。</p><p>如果 IO 触发太快，那 buffer 可能会耗尽。这种情况下操作会失败，然后 -ENOBUFS。可以选择为同一类型的 buffer 设置多个 group，然后循环使用。一旦溢出，就切换到下一个 group，然后重新提交 IO 请求。</p><p>kernel 5.7 后支持。</p><hr><h3 id=io_uring_submit_and_wait>io_uring_submit_and_wait</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>int</span> <span class=nf>io_uring_submit_and_wait</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                             <span class=kt>unsigned</span> <span class=n>wait_nr</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>向 SQ 提交请求，并且等待 n 个完成事件。</p><p>只有一次 syscall。</p><p>返回值：成功返回提交成功的 SQE 数量，失败返回 -errno</p><hr><h3 id=io_uring_cq_advance>io_uring_cq_advance</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>io_uring_cq_advance</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                          <span class=kt>unsigned</span> <span class=n>nr</span><span class=p>);</span>
+</span></span></code></pre></td></tr></table></div></div><p>将 <code>nr</code> 个 <code>io_uring</code> CQE 标记为被消耗。</p><p><code>io_uring_cqe_seen()</code> 会调用这个函数。</p><hr><h3 id=io_uring_for_each_cqe>io_uring_for_each_cqe</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=n>io_uring_for_each_cqe</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                      <span class=kt>unsigned</span> <span class=n>head</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>                      <span class=k>struct</span> <span class=nc>io_uring_cqe</span> <span class=o>*</span><span class=n>cqe</span><span class=p>)</span> <span class=p>{</span> <span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>宏，用于迭代 pending 的完成事件。使用 <code>head</code> 作为迭代器，之后迭代时使用 <code>cqe</code> 指向所有的就绪事件。</p><p>这个帮助宏提供了一个方便的迭代所有 ring 中 pending 事件的方式，之后完成时再调用 <code>io_uring_cq_advance</code> 指定消耗掉了多少个 CQE。调用这个宏比单独调用 <code>io_uring_cqe_seen</code> 更有效率。</p><p>示例：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=kt>void</span> <span class=nf>handle_cqes</span><span class=p>(</span><span class=k>struct</span> <span class=nc>io_uring</span> <span class=o>*</span><span class=n>ring</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=k>struct</span> <span class=nc>io_uring_cqe</span> <span class=o>*</span><span class=n>cqe</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>	<span class=kt>unsigned</span> <span class=n>head</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>	<span class=kt>unsigned</span> <span class=n>i</span> <span class=o>=</span> <span class=mi>0</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>	<span class=n>io_uring_for_each_cqe</span><span class=p>(</span><span class=n>ring</span><span class=p>,</span> <span class=n>head</span><span class=p>,</span> <span class=n>cqe</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=cm>/* handle completion */</span>
+</span></span><span class=line><span class=cl>		<span class=n>printf</span><span class=p>(</span><span class=s>&#34;cqe: %d</span><span class=se>\n</span><span class=s>&#34;</span><span class=p>,</span> <span class=n>cqe</span><span class=o>-&gt;</span><span class=n>res</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>		<span class=n>i</span><span class=o>++</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=n>io_uring_cq_advance</span><span class=p>(</span><span class=n>ring</span><span class=p>,</span> <span class=n>i</span><span class=p>);</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><hr><h2 id=资料出处>资料出处</h2><p><a class=link href=https://man.archlinux.org/listing/liburing target=_blank rel=noopener>Arch manual pages (archlinux.org)</a></p><p><a class=link href=https://github.com/axboe/liburing target=_blank rel=noopener>axboe/liburing (github.com)</a></p><p>《Linux 多线程服务端编程》陈硕。</p></section><footer class=article-footer><section class=article-copyright><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section><section class=article-lastmod><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentcolor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<span>最后更新于 Mar 05, 2024 00:00 UTC</span></section></footer></article><footer class=site-footer><section class=copyright>&copy;
+2023 -
+2024 Roses</section><section class=powerby>使用 <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a> 构建<br>主题 <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.24.2>Stack</a></b> 由 <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a> 设计</section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>
