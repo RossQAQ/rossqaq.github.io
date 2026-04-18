@@ -1,0 +1,218 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import TagList from '../components/TagList.astro';
+
+interface Props {
+  title: string;
+  date: Date;
+  tags: string[];
+  cover?: string;
+  description: string;
+  headings: { depth: number; slug: string; text: string }[];
+}
+
+const { title, date, tags, cover, description, headings } = Astro.props;
+
+const toc = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="post-layout">
+    <article>
+      {cover && <img src={cover} alt={title} class="cover" />}
+      <header class="post-header">
+        <h1>{title}</h1>
+        <div class="meta">
+          <time datetime={date.toISOString()}>
+            {date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+          </time>
+          <TagList tags={tags} />
+        </div>
+      </header>
+      <div class="prose">
+        <slot />
+      </div>
+    </article>
+
+    {toc.length > 0 && (
+      <aside class="toc">
+        <div class="toc-title">目录</div>
+        <nav class="toc-nav">
+          {toc.map((h) => (
+            <a
+              href={`#${h.slug}`}
+              class:list={['toc-link', { 'toc-h3': h.depth === 3 }]}
+              data-toc-slug={h.slug}
+            >
+              {h.text}
+            </a>
+          ))}
+        </nav>
+      </aside>
+    )}
+  </div>
+</BaseLayout>
+
+<style>
+  .post-layout {
+    display: flex;
+    gap: 3rem;
+  }
+
+  .post-layout > article {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cover {
+    width: calc(100% + 2rem);
+    margin-left: -1rem;
+    height: 260px;
+    object-fit: cover;
+    margin-bottom: 1.5rem;
+  }
+
+  .post-header {
+    margin-bottom: 2rem;
+  }
+
+  .post-header h1 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    line-height: 1.25;
+    letter-spacing: -0.03em;
+  }
+
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+  }
+
+  .meta time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toc {
+    position: sticky;
+    top: 64px;
+    width: 180px;
+    flex-shrink: 0;
+    align-self: flex-start;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    padding-top: 0.5rem;
+    border-left: 1px solid var(--border);
+    padding-left: 1.25rem;
+  }
+
+  .toc-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .toc-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .toc-link {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 0.35rem 0 0.35rem 0.75rem;
+    border-left: 2px solid transparent;
+    line-height: 1.45;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .toc-link:hover {
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .toc-link.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    font-weight: 500;
+  }
+
+  .toc-h3 {
+    padding-left: 1.25rem;
+    font-size: 0.72rem;
+    opacity: 0.8;
+  }
+
+  .toc-h3.active {
+    opacity: 1;
+  }
+
+  @media (max-width: 900px) {
+    .toc {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  const tocLinks = document.querySelectorAll('.toc-link[data-toc-slug]');
+  if (tocLinks.length > 0) {
+    const slugToLink = {};
+    tocLinks.forEach((l) => {
+      slugToLink[l.getAttribute('data-toc-slug')] = l;
+    });
+
+    function setActive(slug) {
+      tocLinks.forEach((l) => l.classList.remove('active'));
+      if (slugToLink[slug]) slugToLink[slug].classList.add('active');
+    }
+
+    const allIds = Object.keys(slugToLink);
+    const visibleIds = allIds.filter((id) => {
+      const el = document.getElementById(id);
+      return el && !el.classList.contains('sr-only') && el.offsetHeight > 0;
+    });
+
+    function update() {
+      const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 100;
+      if (atBottom) { setActive(allIds[allIds.length - 1]); return; }
+
+      let lastAboveIdx = -1;
+      for (let i = 0; i < visibleIds.length; i++) {
+        if (document.getElementById(visibleIds[i]).getBoundingClientRect().top <= 80) {
+          lastAboveIdx = i;
+        }
+      }
+
+      if (lastAboveIdx < 0) { setActive(visibleIds[0]); return; }
+
+      const activeTop = document.getElementById(visibleIds[lastAboveIdx]).getBoundingClientRect().top;
+      if (activeTop < -window.innerHeight * 0.5) {
+        for (let i = lastAboveIdx + 1; i < visibleIds.length; i++) {
+          const top = document.getElementById(visibleIds[i]).getBoundingClientRect().top;
+          if (top > -50 && top < window.innerHeight) {
+            setActive(visibleIds[i]);
+            return;
+          }
+        }
+      }
+
+      setActive(visibleIds[lastAboveIdx]);
+    }
+
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  }
+</script>

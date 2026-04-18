@@ -1,0 +1,277 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import TagList from '../components/TagList.astro';
+import { getCollection } from 'astro:content';
+
+type PostEntry = Awaited<ReturnType<typeof getCollection>>[number];
+
+interface SingleItem {
+  type: 'single';
+  post: PostEntry;
+  sortDate: Date;
+}
+
+interface SetItem {
+  type: 'set';
+  setName: string;
+  posts: PostEntry[];
+  sortDate: Date;
+}
+
+type TimelineItem = SingleItem | SetItem;
+
+const allPosts = (await getCollection('posts', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+const postsWithSet = allPosts.filter((p) => p.data.set);
+const postsWithoutSet = allPosts.filter((p) => !p.data.set);
+
+const setMap = new Map<string, PostEntry[]>();
+for (const post of postsWithSet) {
+  const key = post.data.set!;
+  if (!setMap.has(key)) setMap.set(key, []);
+  setMap.get(key)!.push(post);
+}
+
+const setItems: SetItem[] = [...setMap.entries()].map(([setName, posts]) => ({
+  type: 'set',
+  setName,
+  posts,
+  sortDate: posts[0].data.date,
+}));
+
+const singleItems: SingleItem[] = postsWithoutSet.map((post) => ({
+  type: 'single',
+  post,
+  sortDate: post.data.date,
+}));
+
+const sorted = [...singleItems, ...setItems]
+  .sort((a, b) => b.sortDate.valueOf() - a.sortDate.valueOf());
+
+// Pin markdown-demo to the top
+const PINNED = 'markdown-demo.mdx';
+const pinned = sorted.find(
+  (item) => item.type === 'single' && item.post.id === PINNED,
+);
+const rest = sorted.filter(
+  (item) => !(item.type === 'single' && item.post.id === PINNED),
+);
+const timeline: TimelineItem[] = pinned ? [pinned, ...rest] : rest;
+---
+
+<BaseLayout title="Blog">
+  <section class="post-list">
+    {timeline.map((item) => {
+      if (item.type === 'single') {
+        const post = item.post;
+        return (
+          <div class="post-card">
+            <a href={`/posts/${post.id}`} class="card-link" aria-label={post.data.title}></a>
+            {post.data.cover && <img src={post.data.cover} alt={post.data.title} class="card-cover" />}
+            <h2>{post.data.title}</h2>
+            <p class="desc">{post.data.description}</p>
+            <div class="card-meta">
+              <time>
+                {post.data.date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </time>
+              <TagList tags={post.data.tags} />
+            </div>
+          </div>
+        );
+      } else {
+        const { setName, posts } = item;
+        return (
+          <div class="card-stack" style={`--stack-count: ${posts.length};`}>
+            <div class="stack-header">
+              <span class="stack-name">{setName}</span>
+              <span class="stack-badge">{posts.length} 篇</span>
+            </div>
+            {posts.map((post, i) => (
+              <div class="post-card stack-card" style={`--i: ${i};`}>
+                <a href={`/posts/${post.id}`} class="card-link" aria-label={post.data.title}></a>
+                {post.data.cover && <img src={post.data.cover} alt={post.data.title} class="card-cover" />}
+                <h2>{post.data.title}</h2>
+                <p class="desc">{post.data.description}</p>
+                <div class="card-meta">
+                  <time>
+                    {post.data.date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </time>
+                  <TagList tags={post.data.tags} />
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      }
+    })}
+  </section>
+</BaseLayout>
+
+<style>
+  .post-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Dim non-hovered items when a card-stack is focused */
+  .post-list:has(.card-stack:hover) > *:not(.card-stack:hover),
+  .post-list:has(.card-stack:focus-within) > *:not(.card-stack:focus-within) {
+    opacity: 0.35;
+    transition: opacity 0.3s ease;
+  }
+
+  .post-list > * {
+    transition: opacity 0.3s ease;
+  }
+
+  /* ====== Single Card ====== */
+  .post-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card-bg);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .post-card:hover {
+    border-color: #d0d0d5;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  }
+
+  .card-link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    text-decoration: none;
+  }
+
+  .card-cover {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+  }
+
+  .post-card h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0.7rem 0 0.35rem;
+    letter-spacing: -0.01em;
+    line-height: 1.4;
+    color: var(--text, #1a1a2e);
+  }
+
+  .desc {
+    color: var(--muted);
+    font-size: 0.82rem;
+    margin: 0 0 0;
+    line-height: 1.65;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.55rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .card-meta time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .card-meta :global(a) {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* ====== Card Stack ====== */
+  .card-stack {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    padding-top: 2rem;
+  }
+
+  .stack-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 20;
+  }
+
+  .stack-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  .stack-badge {
+    background: var(--accent);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    line-height: 1.5;
+  }
+
+  .stack-card {
+    position: relative;
+    z-index: calc(10 - var(--i, 0));
+    opacity: calc(1 - var(--i, 0) * 0.06);
+    transition: margin-top 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.35s ease,
+                box-shadow 0.3s ease,
+                border-color 0.2s ease;
+    transition-delay: calc(var(--i, 0) * 0.04s);
+  }
+
+  /* Collapsed: overlap cards */
+  .stack-card + .stack-card {
+    margin-top: -5rem;
+    box-shadow: 2px 3px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Hover / focus-within: expand into a list */
+  .card-stack:hover .stack-card,
+  .card-stack:focus-within .stack-card {
+    opacity: 1;
+  }
+
+  .card-stack:hover .stack-card + .stack-card,
+  .card-stack:focus-within .stack-card + .stack-card {
+    margin-top: 0.75rem;
+    box-shadow: none;
+    transition-delay: calc(var(--i, 0) * 0.06s);
+  }
+
+  .card-stack:hover .stack-card:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    border-color: #d0d0d5;
+  }
+
+  .card-stack:hover .card-meta :global(a),
+  .card-stack:focus-within .card-meta :global(a) {
+    z-index: 3;
+  }
+</style>

@@ -1,0 +1,122 @@
+---
+import AiChat from './AiChat';
+
+interface Props {
+  question: string;
+  answer: string;
+}
+
+const { question, answer } = Astro.props;
+---
+
+<AiChat client:load question={question} answer={answer} />
+
+<style>
+  :global(.ai-chat) {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    background: var(--bg);
+    font-family: var(--font-body);
+  }
+
+  :global(.ai-chat-header) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: color-mix(in srgb, var(--text) 5%, transparent);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+
+  :global(.ai-chat-header:hover) {
+    background: color-mix(in srgb, var(--text) 10%, transparent);
+  }
+
+  :global(.ai-chat-icon) {
+    background: var(--accent, #6366f1);
+    color: white;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  :global(.ai-chat-toggle) {
+    font-size: 0.85rem;
+    color: color-mix(in srgb, var(--text) 70%, transparent);
+  }
+
+  :global(.ai-chat-body) {
+    padding: 1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  :global(.ai-chat-msg) {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+
+  :global(.ai-chat-avatar) {
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+  }
+
+  :global(.ai-chat-avatar.user) {
+    background: color-mix(in srgb, var(--text) 15%, transparent);
+    color: var(--text);
+  }
+
+  :global(.ai-chat-avatar.bot) {
+    background: var(--accent, #6366f1);
+    color: white;
+  }
+
+  :global(.ai-chat-bubble) {
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+    border-radius: 8px;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  :global(.ai-chat-answer .ai-chat-bubble) {
+    background: color-mix(in srgb, var(--accent, #6366f1) 6%, transparent);
+  }
+
+  :global(.ai-chat-text) {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  :global(.ai-chat-cursor) {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--accent, #6366f1);
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: blink 0.8s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+</style>

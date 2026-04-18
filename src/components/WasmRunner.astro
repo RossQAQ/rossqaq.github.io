@@ -1,0 +1,76 @@
+---
+// Wrapper to use WasmRunner as an Astro component in .md/.mdx
+import WasmRunner from './WasmRunner';
+
+interface Props {
+  wasmUrl: string;
+  width?: number;
+  height?: number;
+}
+
+const { wasmUrl, width = 600, height = 400 } = Astro.props;
+---
+
+<WasmRunner client:load wasmUrl={wasmUrl} width={width} height={height} />
+
+<style>
+  :global(.wasm-runner) {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    background: #1e1e1e;
+  }
+
+  :global(.wasm-bar) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background: #2d2d2d;
+    font-size: 0.8rem;
+    color: #ccc;
+    font-family: monospace;
+  }
+
+  :global(.wasm-badge) {
+    background: #6366f1;
+    color: white;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  :global(.wasm-url) {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.wasm-status) {
+    font-weight: 600;
+  }
+
+  :global(.wasm-status.loaded) {
+    color: #4ade80;
+  }
+
+  :global(.wasm-status.error) {
+    color: #f87171;
+  }
+
+  :global(.wasm-error) {
+    padding: 0.75rem;
+    color: #f87171;
+    font-size: 0.8rem;
+    margin: 0;
+  }
+
+  :global(.wasm-canvas) {
+    display: block;
+    width: 100%;
+    background: #111;
+  }
+</style>

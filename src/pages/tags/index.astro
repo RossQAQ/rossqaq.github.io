@@ -1,0 +1,63 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const posts = await getCollection('posts');
+const tagMap = new Map<string, number>();
+posts.forEach((post) => {
+  post.data.tags.forEach((tag) => {
+    tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
+  });
+});
+const tags = [...tagMap.entries()].sort((a, b) => b[1] - a[1]);
+---
+
+<BaseLayout title="Tags">
+  <h1>Tags</h1>
+  <div class="tag-cloud">
+    {tags.map(([tag, count]) => (
+      <a href={`/tags/${tag}`} class="tag-item">
+        {tag} <span class="count">({count})</span>
+      </a>
+    ))}
+  </div>
+</BaseLayout>
+
+<style>
+  h1 {
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .tag-item {
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 0.45rem 1rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s, transform 0.15s;
+  }
+
+  .tag-item:hover {
+    background: #d8daf7;
+    color: #4343c7;
+    text-decoration: none;
+    transform: translateY(-1px);
+  }
+
+  .count {
+    opacity: 0.6;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+</style>

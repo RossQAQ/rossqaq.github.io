@@ -1,0 +1,87 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import TagList from '../../components/TagList.astro';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts');
+  const tags = new Set<string>();
+  posts.forEach((post) => post.data.tags.forEach((t) => tags.add(t)));
+  return [...tags].map((tag) => ({ params: { tag } }));
+}
+
+const { tag } = Astro.params;
+const allPosts = await getCollection('posts');
+const posts = allPosts
+  .filter((post) => post.data.tags.includes(tag!))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+---
+
+<BaseLayout title={`Tag: ${tag}`}>
+  <a href="/tags" class="back">&larr; All Tags</a>
+  <h1>#{tag}</h1>
+  <div class="post-list">
+    {posts.map((post) => (
+      <a href={`/posts/${post.id}`} class="post-item">
+        <h2>{post.data.title}</h2>
+        <p class="desc">{post.data.description}</p>
+        <div class="item-meta">
+          <time>{post.data.date.toLocaleDateString('zh-CN')}</time>
+          <TagList tags={post.data.tags} />
+        </div>
+      </a>
+    ))}
+  </div>
+</BaseLayout>
+
+<style>
+  .back {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  h1 {
+    margin: 0.75rem 0 1.5rem;
+  }
+
+  .post-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .post-item {
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card-bg);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 0.2s;
+  }
+
+  .post-item:hover {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    text-decoration: none;
+  }
+
+  .post-item h2 {
+    font-size: 1.05rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .desc {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .item-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+</style>
