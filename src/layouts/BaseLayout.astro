@@ -1,4 +1,6 @@
 ---
+import SearchBar from '../components/SearchBar.astro';
+
 interface Props {
   title: string;
   description?: string;
@@ -22,6 +24,7 @@ const { title, description = 'A minimal blog' } = Astro.props;
     <nav>
       <div class="nav-inner">
         <a href="/" class="logo">Roses</a>
+        <SearchBar />
         <div class="nav-links">
           <a href="/">Posts</a>
           <a href="/tags">Tags</a>
@@ -441,6 +444,128 @@ const { title, description = 'A minimal blog' } = Astro.props;
       }
       .markdown-alert.markdown-alert-caution .markdown-alert-title {
         color: #cf222e;
+      }
+
+      /* Search */
+      .search-container {
+        flex: 1;
+        max-width: 280px;
+        position: relative;
+      }
+
+      .search-input-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: rgba(0, 0, 0, 0.03);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.3rem 0.65rem;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+
+      .search-input-wrap:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(87, 87, 230, 0.1);
+      }
+
+      .search-icon {
+        width: 14px;
+        height: 14px;
+        color: var(--muted);
+        flex-shrink: 0;
+      }
+
+      .search-input {
+        border: none;
+        background: none;
+        outline: none;
+        font-family: var(--font);
+        font-size: 0.82rem;
+        color: var(--fg);
+        width: 100%;
+        line-height: 1.4;
+      }
+
+      .search-input::placeholder {
+        color: var(--muted);
+        opacity: 0.6;
+      }
+
+      .search-dropdown {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        overflow: hidden;
+        z-index: 200;
+      }
+
+      .search-empty {
+        padding: 1rem;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .search-result {
+        display: block;
+        padding: 0.6rem 0.75rem;
+        text-decoration: none;
+        color: inherit;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.1s;
+      }
+
+      .search-result:last-child {
+        border-bottom: none;
+      }
+
+      .search-result:hover,
+      .search-result.active {
+        background: var(--accent-soft);
+      }
+
+      .search-result-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--fg);
+        margin-bottom: 0.15rem;
+      }
+
+      .search-result-desc {
+        font-size: 0.75rem;
+        color: var(--muted);
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .search-result-tags {
+        display: flex;
+        gap: 0.35rem;
+        margin-top: 0.25rem;
+      }
+
+      .search-tag {
+        font-size: 0.65rem;
+        color: var(--muted);
+      }
+
+      @media (max-width: 600px) {
+        .search-container {
+          max-width: 140px;
+        }
+
+        .search-result-desc {
+          display: none;
+        }
       }
     </style>
   </body>
