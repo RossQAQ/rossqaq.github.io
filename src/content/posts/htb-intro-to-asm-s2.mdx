@@ -13,7 +13,7 @@ set: "htb-assembly"
 
 以下是示例，一个汇编的 `Hello World`，
 
-```assembly
+```plaintext
          global  _start
 
          section .data
@@ -64,11 +64,8 @@ _start:
 | `message db 0x41, 0x42, 0x43, 0x0a` | 定义 label `message => ABC\n`          |
 | `message db "Hello World!", 0x0a`   | 定义 label `message => Hello World!\n` |
 
-
-
 ## 汇编 & 反汇编
 
 ## GDB
 
 ## 使用 GDB debug
-
