@@ -1,14 +1,9 @@
 ---
-title: "crust_of_rust_ffi"
-description: "title: Crust of Rust - Build Scripts and FFI"
+title: "Crust of Rust - Build Scripts and FFI"
+description: "Rust 跨语言调用的方式"
 tags: ["rust", "crust-of-rust"]
-date: 2024-01-01
+date: 2025-10-04
 set: "crust-of-rust"
----
----
-title: Crust of Rust - Build Scripts and FFI
-description: Rust 跨语言调用的方式
-date: 2025-10-04 00:00:00+0000
 ---
 
 > [!CAUTION]
@@ -57,7 +52,7 @@ Rust 还有一个 `cfg!()` 宏（ `#[cfg(feature = "")]` 同理），常见的�
 
 不过实际上，通常依赖的库都有一个 crate 是 `foo-sys` 版本，唯一做的事情就是把他做一层 binding，这样所有其他的依赖都可以只依赖着一个 crate 了。
 
-> [Build Scripts #*-sys Packages - The Cargo Book](https://doc.rust-lang.org/cargo/reference/build-scripts.html#-sys-packages)
+> [Build Scripts #\*-sys Packages - The Cargo Book](https://doc.rust-lang.org/cargo/reference/build-scripts.html#-sys-packages)
 
 其他还有 `rustc-env` 这一条也许有用。
 

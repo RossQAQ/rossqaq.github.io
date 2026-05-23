@@ -1,14 +1,9 @@
 ---
-title: "crust_of_rust_atomics"
-description: "title: Crust of Rust - Atomics and Memory Ordering"
+title: "Crust of Rust - Atomics and Memory Ordering"
+description: "Rust 中的原子类型以及内存序"
 tags: ["rust", "crust-of-rust"]
-date: 2024-01-01
+date: 2025-10-06
 set: "crust-of-rust"
----
----
-title: Crust of Rust - Atomics and Memory Ordering
-description: Rust 中的原子类型以及内存序
-date: 2025-10-06 00:00:00+0000
 ---
 
 > [!CAUTION]
@@ -303,7 +298,7 @@ happens-before 指的是所有在 store 及之前的操作也都发生在 load �
 
 cppref 的描述如下：
 
-> A load operation with this memory order performs the *acquire operation* on the affected memory location: no reads or writes in the current thread can be reordered before this load.
+> A load operation with this memory order performs the _acquire operation_ on the affected memory location: no reads or writes in the current thread can be reordered before this load.
 
 也就是说，上面代码的第九行不能被重排到第二行的 while load 之前。
 
@@ -382,13 +377,13 @@ fn main() {
 
 已知，如果 t1 想运行，那么他必须等到 tx 运行后；同样，t2 也要等待 ty。
 
-**那什么情况下 `z` 可以是 0？** 
+**那什么情况下 `z` 可以是 0？**
 
 **假设 t1 先执行，对于 `x.load(Ordering::Acquire)`，我们知道 `Acquire` 要求能看到对应 `Release` 之前的所有操作，不过在 tx 中，`Release` 前没有任何操作，对 `y` 的操作在 ty 这个线程。所以在这里，我们实际上能够看到任何可能的 `y` 值。 跟 ty 是不是 run 了没关系。如果 t2 先执行也同理。**
 
 这个跟指令重排没有关系，单纯是可见性的问题。
 
-> Like [`Acquire`](https://doc.rust-lang.org/std/sync/atomic/enum.Ordering.html#variant.Acquire)/[`Release`](https://doc.rust-lang.org/std/sync/atomic/enum.Ordering.html#variant.Release)/[`AcqRel`](https://doc.rust-lang.org/std/sync/atomic/enum.Ordering.html#variant.AcqRel) (for load, store, and load-with-store operations, respectively) with the additional guarantee that ***all*** threads see all sequentially consistent operations in the same order.
+> Like [`Acquire`](https://doc.rust-lang.org/std/sync/atomic/enum.Ordering.html#variant.Acquire)/[`Release`](https://doc.rust-lang.org/std/sync/atomic/enum.Ordering.html#variant.Release)/[`AcqRel`](https://doc.rust-lang.org/std/sync/atomic/enum.Ordering.html#variant.AcqRel) (for load, store, and load-with-store operations, respectively) with the additional guarantee that **_all_** threads see all sequentially consistent operations in the same order.
 
 如果我们现在把所有的 `x` 和 `y` 的 store、load 操作都改为 `SeqCst`，那么现在绝对不会出现 0.
 

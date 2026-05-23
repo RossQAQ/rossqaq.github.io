@@ -1,14 +1,9 @@
 ---
-title: "beginner"
-description: "title: Brackey's Godot Beginner Tutorial"
+title: "Godot Beginner"
+description: "Brackey's Godot Beginner Tutorial"
 tags: ["godot", "gamedev"]
-date: 2024-01-01
+date: 2025-07-01
 set: "godot-beginner"
----
----
-title: Brackey's Godot Beginner Tutorial
-description: 跟随 Brackey 入门 Godot
-date: 2025-07-30 00:00:00+0000
 ---
 
 [How to make a Video Game - Godot Beginner Tutorial](https://www.youtube.com/watch?v=LOhfqjmasi0)
@@ -39,7 +34,7 @@ date: 2025-07-30 00:00:00+0000
 
 我们需要添加我们的人物。关掉窗口，创建一个新场景，然后添加一个 `CharacterBody2D` 节点；我们要创建一个可以运动的角色，所以再给这个节点添加一个 `AnimatedSprite2D` ，在右侧的检查器中选择 Animation 然后添加一个 Sprite Frame，之后引擎的下方就会打开一个动画窗口了。
 
-选择“从精灵表中添加帧”，选择主角的那张图，调整一下 grid，选择 idle 的 4帧添加。F 将摄像机中心放到角色身上，再滚滚轮放大。
+选择“从精灵表中添加帧”，选择主角的那张图，调整一下 grid，选择 idle 的 4 帧添加。F 将摄像机中心放到角色身上，再滚滚轮放大。
 
 Godot 默认会让材质有一些滤镜效果，但对于像素画来说没必要，在 project setting 中把纹理过滤关掉。这样就可以播放动画了，看起来效果不错；可以把 fps 改高一些。
 
@@ -47,7 +42,7 @@ Godot 默认会让材质有一些滤镜效果，但对于像素画来说没必�
 
 **会看到引擎提示节点没有 shape，因为这是一个物理节点，要有一个 shape**，再 `CharacterBody2D` 下增加一个 `CollisionShape2D`，改一下形状，不需要特别精准。
 
-之后去 Game scene，拖出 player，我们还需要一个摄像机，还是添加 Node `Camera2D`，改一改 zoom，拖动焦点到人物身上。F5运行即可看到 idle 动画
+之后去 Game scene，拖出 player，我们还需要一个摄像机，还是添加 Node `Camera2D`，改一改 zoom，拖动焦点到人物身上。F5 运行即可看到 idle 动画
 
 > 这里记得在 sprite animation 里打开加载后自动播放。
 
@@ -65,7 +60,7 @@ Godot 默认会让材质有一些滤镜效果，但对于像素画来说没必�
 
 首先需要添加一个 Node `TileMap`，但发现 `TileMap` 现在是 Deprecated，推荐使用 `TileMapLayer`，看了文档，看起来是多个 `TileMapLayer` 可以实现和 `TileMap` 相同的效果。
 
-不过在这里想必可以忽略 `TileMapLayer` 和 `TileMap` 的区别，毕竟从说明上看，我一个 Layer 也可以当   完整 Map 对不对。
+不过在这里想必可以忽略 `TileMapLayer` 和 `TileMap` 的区别，毕竟从说明上看，我一个 Layer 也可以当 完整 Map 对不对。
 
 设置好 `TileSet` 就可以准备画地图了。然后地图什么的随便画画。
 
@@ -119,7 +114,7 @@ Godot 默认会让材质有一些滤镜效果，但对于像素画来说没必�
 
 我们在 `Area2D` Node 中可以看到很多 Signal，我们双击 `body_entered` 然后点击 connect。
 
-不过不管哪个 Body 碰到金币都会触发，我们只希望角色触发，可以通过改变他们的碰撞 Layer 解决，把主角的 Layer 放到2，至于 coin 的 Layer，我们还不需要它处于其他 Layer，**只希望他在 Layer 2 检测碰撞，所以修改 Mask。**
+不过不管哪个 Body 碰到金币都会触发，我们只希望角色触发，可以通过改变他们的碰撞 Layer 解决，把主角的 Layer 放到 2，至于 coin 的 Layer，我们还不需要它处于其他 Layer，**只希望他在 Layer 2 检测碰撞，所以修改 Mask。**
 
 我们需要在碰撞时销毁金币，调用 `queue_free()` 即可。
 
@@ -165,7 +160,7 @@ Godot 默认会让材质有一些滤镜效果，但对于像素画来说没必�
 
 脚本选择默认的模板，我们需要修改的是 `_process`，因为它每一帧都会执行，我们也需要每一帧移动我们的史莱姆。
 
-它的参数是 `delta`，指示距离上一帧的时间，我们可以用 速度 * `delta` 即可让史莱姆的速度恒定，不管帧数高低。
+它的参数是 `delta`，指示距离上一帧的时间，我们可以用 速度 \* `delta` 即可让史莱姆的速度恒定，不管帧数高低。
 
 还需要控制它的方向，我们需要检测碰撞，给史莱姆增加一个 `RayCast2D` Node。
 

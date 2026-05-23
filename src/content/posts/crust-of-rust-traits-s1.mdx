@@ -1,14 +1,9 @@
 ---
-title: "crust_of_rust_traits"
-description: "title: Crust of Rust - Dispatch and Fat Pointers"
+title: "Crust of Rust - Dispatch and Fat Pointers"
+description: "Rust 的 traits"
 tags: ["rust", "crust-of-rust"]
-date: 2024-01-01
+date: 2025-09-20
 set: "crust-of-rust"
----
----
-title: Crust of Rust - Dispatch and Fat Pointers
-description: Rust 的 traits
-date: 2025-09-20 00:00:00+0000
 ---
 
 > [!CAUTION]
@@ -186,7 +181,7 @@ pub fn say_hi(s: Box<dyn Hi>) {
 // 2. HiVtable {
 //    hi: &<str as Hi>::hi
 //}
-// 调用时类似: 
+// 调用时类似:
 // s.vtable.hi(s.ptr)
 ```
 
@@ -201,7 +196,7 @@ pub fn say_hi(s: Box<dyn Hi>) {
 ```rust
 pub trait Hi {
     type Name;
-    
+
     fn hi(&self);
 }
 ```
@@ -219,7 +214,7 @@ pub fn boo(s: &dyn Hi<Name = ()>);
 ```rust
 pub trait Hi {
     fn hi(&self);
-    
+
     fn hello();
 }
 ```
@@ -236,7 +231,7 @@ pub trait Hi {
 
 ```rust
 pub trait Hi
-where 
+where
 	Self: Sized {
         ...
 }
@@ -282,7 +277,7 @@ pub fn it(v: &mut dyn Iterator<Item = bool>) {
 }
 ```
 
-这段代码是可以编译的，如果你看源码的话，**那些不能被放进 v-table（即不满足对象安全的方法）都有 `Self: Sized` 这个约束.** 
+这段代码是可以编译的，如果你看源码的话，**那些不能被放进 v-table（即不满足对象安全的方法）都有 `Self: Sized` 这个约束.**
 
 # Drop
 
@@ -351,10 +346,10 @@ baz(|| {
 
 时刻记住，`impl Fn()` 只是一个泛型约束的语法糖。
 
-通常 `impl Fn()` 可能更经常使用，有一些情况下你可以使用 trait object（当然，需要object safe），因为使用 `impl Fn()` 时你会把泛型参数一直传播出去。
+通常 `impl Fn()` 可能更经常使用，有一些情况下你可以使用 trait object（当然，需要 object safe），因为使用 `impl Fn()` 时你会把泛型参数一直传播出去。
 
 ## Any trait
 
 [Any in std::any - Rust](https://doc.rust-lang.org/std/any/trait.Any.html) 这个 trait 会返回一个类型的标识符。编译器会保证标识符唯一。如果你的 trait object 实现了 `Any` trait，那你就可以获得他的类型信息之后使用 downcast 转换为他实际的类型。
 
-可以查看文档了解更多 [std::any - Rust](https://doc.rust-lang.org/std/any/index.html) 
+可以查看文档了解更多 [std::any - Rust](https://doc.rust-lang.org/std/any/index.html)
