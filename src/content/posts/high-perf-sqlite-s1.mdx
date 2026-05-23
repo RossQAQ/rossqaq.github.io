@@ -1,0 +1,30 @@
+---
+title: "High Performance SQLite -Introduction"
+description: "High Performance SQLite，如何使用 SQLite？"
+cover: ""
+tags: ["sqlite", "sql"]
+date: 2026-05-16
+set: "high-perf-sqlite"
+---
+
+## AI 总结
+
+
+
+
+
+## SQLite 介绍
+
+对于 MySQL 和 Posgresql，他们都是 client-server 模型、有他们自己的协议，而 SQLite 并不是，一个数据库只是一个单纯的文件，C lib 和这个文件进行交互，文件格式向后兼容。
+
+SQLite 保证至少在 2050 年前保证向后兼容。
+
+## SQLite is SAFE
+
+SQLite 最开始的目标是嵌入式系统，还有移动端，所以它有很多测试来测试断电或者 media 被移除之类的场景。也就是说即使断电，事务也不会执行一半。
+
+SQLite 是开源的，但不接受开源贡献，它们声称的原因是为了保证可靠性、稳定性。不过社区有一些其他的 fork。
+
+## Just a File
+
+之前说过 SQLite 的数据库只是一个磁盘的文件，跟 MySQL 等数据库完全不一样。这个文件有非常非常严格的定义，兼容性很好，所以直接发送文件很方便。由于它是一个文件，所以新建数据库也完全没有开销。

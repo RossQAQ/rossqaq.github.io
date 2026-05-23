@@ -3,6 +3,72 @@ title: "HTB Intro to Assembly - Assembling & Debugging"
 description: "HTB 的 assembly 入门课程笔记。"
 cover: ""
 tags: ["htb", "assembly"]
-date: 2026-04-20
+date: 2026-05-02
 set: "htb-assembly"
 ---
+
+## 汇编文件结构
+
+接下来会学习汇编指令、写汇编代码并且 debug。所以首先要学习基础的汇编文件结构。
+
+以下是示例，一个汇编的 `Hello World`，
+
+```assembly
+         global  _start
+
+         section .data
+message: db      "Hello HTB Academy!"
+
+         section .text
+_start:
+         mov     rax, 1
+         mov     rdi, 1
+         mov     rsi, message
+         mov     rdx, 18
+         syscall
+
+         mov     rax, 60
+         mov     rdi, 0
+         syscall
+```
+
+运行之后应该会打印“`Hello HTB Academy!`”。
+
+从竖直方向上看，分为三个部分：
+
+1. `Labels`
+2. `Instructions`
+3. `Operands`
+
+| section         | 描述                                 |
+| --------------- | ------------------------------------ |
+| `global _start` | 引导，代码从 `_start` label 开始执行 |
+| `section .data` | 数据部分，包含所有的变量             |
+| `section .text` | 文本部分，包含所有需要执行的代码     |
+
+`.data` 和 `.text` 都指向内存的 `data` 和 `text` 段
+
+### Directives
+
+汇编代码以行为单位，每一行一条指令。第一行 directive `global _start`，告诉计算机从 `_start` 后开始执行代码，在 `Control Instructions` 部分会有更详细的描述。
+
+### 变量
+
+接下来，我们有 `.data` 部分，`data` 部分保存变量以便可以复用他们。程序启动之后所有的变量都会被加载到 `data` 段。后面就可以看到这个现象了。
+
+可以使用 `db` 来定义字节 list，`dw` 代表 word list，`dd` 代表数字 list，等等。我们也可以给所有的变量打标签，后续就可以 call 它或者引用它了，以下是一些例子
+
+| 指令                                | 描述                                   |
+| ----------------------------------- | -------------------------------------- |
+| `db 0x0a`                           | 定义字节 `0x0a`，新的一行              |
+| `message db 0x41, 0x42, 0x43, 0x0a` | 定义 label `message => ABC\n`          |
+| `message db "Hello World!", 0x0a`   | 定义 label `message => Hello World!\n` |
+
+
+
+## 汇编 & 反汇编
+
+## GDB
+
+## 使用 GDB debug
+

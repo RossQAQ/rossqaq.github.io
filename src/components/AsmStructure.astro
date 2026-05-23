@@ -1,0 +1,140 @@
+---
+/**
+ * Assembly file structure diagram
+ * Color-coded breakdown: Directives, Sections (Labels / Instructions / Operands)
+ */
+---
+
+<div class="asm-diagram">
+  <div class="asm-section">
+    <div class="asm-header">Directives</div>
+    <div class="asm-grid">
+      <span class="empty"></span>
+      <span class="instr">global</span>
+      <span class="operand">_start</span>
+    </div>
+  </div>
+
+  <div class="asm-section">
+    <div class="asm-header">Sections</div>
+    <div class="asm-grid">
+      <span class="label col-head">Labels</span>
+      <span class="instr col-head">Instructions</span>
+      <span class="operand col-head">Operands</span>
+
+      <span class="empty"></span>
+      <span class="instr">section</span>
+      <span class="operand">.data</span>
+
+      <span class="label">message:</span>
+      <span class="instr">db</span>
+      <span class="operand">"Hello HTB Academy!"</span>
+
+      <span class="empty"></span>
+      <span class="instr">section</span>
+      <span class="operand">.text</span>
+
+      <span class="label">_start:</span>
+      <span class="empty"></span>
+      <span class="empty"></span>
+
+      <span class="empty"></span>
+      <span class="instr">mov</span>
+      <span class="operand">rax, 1</span>
+
+      <span class="empty"></span>
+      <span class="instr">mov</span>
+      <span class="operand">rdi, 1</span>
+
+      <span class="empty"></span>
+      <span class="instr">mov</span>
+      <span class="operand">rsi, message</span>
+
+      <span class="empty"></span>
+      <span class="instr">mov</span>
+      <span class="operand">rdx, 18</span>
+
+      <span class="empty"></span>
+      <span class="instr">syscall</span>
+      <span class="empty"></span>
+
+      <span class="empty"></span>
+      <span class="instr">mov</span>
+      <span class="operand">rax, 60</span>
+
+      <span class="empty"></span>
+      <span class="instr">mov</span>
+      <span class="operand">rdi, 0</span>
+
+      <span class="empty"></span>
+      <span class="instr">syscall</span>
+      <span class="empty"></span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .asm-diagram {
+    background: #1b1b2f;
+    padding: 1.25rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+  }
+
+  .asm-section {
+    border: 2px solid #40916c;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .asm-section + .asm-section {
+    margin-top: 12px;
+  }
+
+  .asm-header {
+    background: #2d6a4f;
+    color: #fff;
+    padding: 6px 12px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+  }
+
+  .asm-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+    padding: 8px 12px;
+  }
+
+  .asm-grid > span {
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-align: center;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.85rem;
+    color: #fff;
+  }
+
+  .label {
+    background: #e76f51;
+  }
+
+  .instr {
+    background: #e63946;
+  }
+
+  .operand {
+    background: #457b9d;
+  }
+
+  .col-head {
+    font-weight: bold;
+  }
+
+  .empty {
+    background: transparent;
+  }
+</style>
