@@ -90,7 +90,7 @@ const timeline: TimelineItem[] = pinned ? [pinned, ...rest] : rest;
             {posts.map((post, i) => (
               <div class="post-card stack-card" style={`--i: ${i};`}>
                 <a href={`/posts/${post.id}`} class="card-link" aria-label={post.data.title}></a>
-                {post.data.cover && <img src={post.data.cover} alt={post.data.title} class="card-cover" />}
+                {i === 0 && post.data.cover && <img src={post.data.cover} alt={post.data.title} class="card-cover" />}
                 <h2>{post.data.title}</h2>
                 <p class="desc">{post.data.description}</p>
                 <div class="card-meta">
