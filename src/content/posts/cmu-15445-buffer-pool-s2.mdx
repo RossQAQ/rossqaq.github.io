@@ -1,0 +1,307 @@
+---
+title: "P1 - Buffer Pool Manager"
+description: "缓存管理器"
+tags: ["cpp", "database", "cmu-15445"]
+date: 2025-10-11
+set: "cmu-15445"
+---
+
+# 总览
+
+这个课程会从头构建一个磁盘数据库管理系统，`BusTub`。
+
+第一部分要实现的是 **buffer pool manager**，它有两个作用：
+
+1. 管理物理页。把它从内存中和磁盘中按需移动。
+2. 作为缓存，命中越多，速度越快。所以它要把冷页放回磁盘中。
+
+`page` 包含 8KB 的数据，manager 以 8KB 为单位管理数据。manager 会把 `page` 存到固定大小的被称为 `frame` 的缓存中。这俩东西的区别很小。
+
+`page` 是 8KB 的逻辑上的数据，可以被存到内存或者磁盘中。
+
+`frame` 是 8KB 的内存块，存储一个 `page` 的数据。
+
+需要把 逻辑上的数据 存储到 物理上的 frame 中。
+
+既然它还要作为缓存，那就要支持比内存更大的数据存储管理。比如在只有 1GB 内存的电脑，也可以管理 2GB 的数据。
+
+buffer pool manager 的 IO 操作跟 DBMS 是被抽象分开的。例如，当 DBMS 的一个组件（比如执行引擎）按某页数据的唯一标识 (`page_id_t`) 来查找数据时，这个组件不需要知道数据的具体位置（不管是不是在内存里）。类似地，buffer pool manager 也不需要理解数据页的内容，只需要管理它存在哪。
+
+**buffer pool manager 的实现必须也是线程安全的。**需要实现：
+
+- [**Adaptive Replacement Cache (ARC) Replacement Policy**](https://15445.courses.cs.cmu.edu/fall2025/project1/#arc-replacer)
+- [**Disk Scheduler**](https://15445.courses.cs.cmu.edu/fall2025/project1/#disk-scheduler)
+- [**Buffer Pool Manager**](https://15445.courses.cs.cmu.edu/fall2025/project1/#buffer-pool-manager)
+
+# 项目指引
+
+首先你不能修改已经定义好的 API，也不能移除已有类中的成员。你可以自己增加额外的成员变量以及你需要的工具函数。
+
+## Task #1 - ARC
+
+这个组件用来决定该对哪些 `page`/`frame` 进行 evict，把他们从内存放到磁盘里。
+
+需要实现 `ArcReplacer`，它是一个独立的结构，跟其他的 `Replacer` 没关系。你只需要关心它就可以，不需要关心什么 LRU-K, LRU, 或者 Clock replacement 策略。（这些应该都是以前的公开课上实现的）
+
+[ARC](https://en.wikipedia.org/wiki/Adaptive_replacement_cache) 这个策略是 IBM 实现的，重点是 **adaptive**, **它包含两个跟踪已经存储的页的表，两个最近被 evicted 的页的表，以及适配 workload 的 target size。**
+
+因为 adaptiveness，ARC 替换策略的综合表现比 LRU 好一些。你需要实现一个 **variant** ARC 替换策略。
+
+- `Size() -> size_t`：当前 `ArcReplacer` 中 evictable frame 的个数。
+- `SetEvictable(frame_id_t frame_id, bool set_evictable)`：控制一个 frame 是否可以 evict，还要控制 `ArcReplacer` 的 size。实现 `BufferPoolManager` 的时候就知道该怎么调用它了。总之，**如果一个 page 的 pin 计数是 0，那相应的 frame 就是 evictable 的**。
+- `RecordAccess(frame_id_t frame_id, page_id_t page_id)`：在对应的 frame 中记录当前时间要被访问的 page。这个方法应该在一个 page 被 `BufferPoolManager` pin 到 frame 后被调用。
+- `Evict() -> std::optional<frame_id_t>`：按下面的算法来 evict frame。如果没有能被 evict 的，那就返回 `std::nullopt`
+- `Remove(frame_id_t frame_id)`：移除 frame 以及它对应的 page。（它需要在 replacer 中并且 evictable）。这个方法只应该在 `BufferPoolManager` delete page 时调用。
+
+### ARC 替换算法
+
+ARC 替换算法包含以下的部分，从 MRU（most recently used）开始说，这个表跟踪最近被访问过一次的 frame 以及对应的 page，而 MFU（most frequently used）追踪的则是被访问超过 1 次的 frame 以及对应的 page。
+
+此外还维护两个 ghost list，MRU 和 MFU 各一个。它们追踪的是最近被 evict 的不在 buffer pool 内的 frame。
+
+最后，MRU 表还需要一个 target size，用来适配 workload 大小，**从 0 开始**。
+
+注意，**真实的** MRU 表的大小可能跟 target 不同，可大可小。因为这只是我们的 target size。
+
+使用 ARC replacer 时，大概有 5 个跟 size 相关的概念：
+
+- `replacer_size_`：`ArcReplacer` 支持的最大 frame 数，跟 buffer pool 的 size 一样，因为 `BufferPoolManager` 里包含了所有 frame 的 placeholders。
+- 4 个表的总 size：因为要在 ghost list 中跟踪被 evict 的 page，所以四个表加一块是 2倍 的 `ArcReplacer` 的 size
+- 当前的 evictable size `curr_size_`：当前 replacer 中并不是所有的 frame 都可以 evict。这个 size 代表当前可以被 evict 的 frame 个数。`ArcReplacer` 初始化时，其中没有 frame，只有一个 frame 是 evictable 时，这个 size 才需要递增。同样的，如果 frame 被 pin 住或者不再使用，evictable 就要递减。
+- MRU 表 target size `mru_target_size_`：MRU 表的目标大小，根据 workload 来调整。
+- MRU 表实际的 size `mru_.size()`: MRU 表的实际大小，可能和 target size 不同。
+
+到这里先确保你理解了 frame 和 page 的关系，然后你才能理解为什么需要根据 frame id 来跟踪 page id
+
+- page 会被一对一映射到一个 frame
+- 直到 buffer pool 中的 page 被 evict，page 和 frame 的映射不能被改变
+- 被 evict 的 page 和任何 frame 都没关系
+
+在 frame 以及他对应的 page 上执行 `RecordAccess` 时，有四种情况：
+
+1. **page 已经在 MRU 或者 MFU 中**：缓存命中，把 page 移动到 MFU 前面。
+
+2. **page 已经在 ghost MRU 中**：缓存 miss，但我们命中了 ghost list。这种情况下我们当做 伪·命中，然后调整 target size。如果 ghost MRU 的 size >= ghost MFU 的 size，增加 MRU target size by 1；否则增加 ghost MFU size / ghost MRU size (向下取整)。不要让 target size 超过 replacer size。然后把 page 移动到 MFU 的前面。这里的想法是如果 MRU 表再大一点点，那就能命中缓存了。
+
+3. **page 已经在 ghost MFU 中**：和前面很像。如果 ghost MFU 的 size >= ghost MRU 的 size，那么降低 MRU 的 target size by 1，否则降低 ghost MRU size / ghost MFU size（向下取整）。size 不能小于 0。之后把 page 移动到 MFU 前面。
+
+4. **page 不在 replacer 中**：cache 和 ghost list 都 miss 了。然后会发生以下两种情况：
+
+   1. 如果 MRU size + ghost MRU size = replacer size：移除 ghost MRU 表的最后一项，然后把 page 放到 MRU 的前面。
+   2. 否则的话 MRU size + ghost MRU size 应该小于 replacer size（如果你没错的话）。这种情况下
+      - 如果 MRU size + MRU ghost size + MFU size + MFU ghost size = 2 * replacer size：移除 ghost MFU 的最后一个元素，然后把 page 放到 MRU 前面
+      - 否则单纯把 page 放到 MRU 的前面就好
+
+
+### 实现要求
+
+必须理解什么时候 page 要存到 MRU，什么时候存到 MFU。这也能帮助你理解算法的具体细节。如果 MRU 表的 size 比 target size 小，我们就要尝试 evict 一个 MFU 的 frame，如果大了就要尝试 evict 一个 MRU 的 frame。如果 evict 失败，就返回 `std::nullopt`。
+
+在 Task#3 里你是会耗尽所有的可用 frame 的。
+
+实现要内存安全。
+
+后面有对 `RecordAccess` 的性能测试，如果对 ARC replacement 算法感兴趣可以读 [paper](https://www.cs.cmu.edu/~natassa/courses/15-721/papers/arcfast.pdf)，这里不要求精准实现原算法。
+
+## Task #2 Disk Scheduler
+
+这个组件负责调度 `DiskManager` 的读写操作。需要实现 `DiskScheduler`。
+
+disk scheduler 可以被其他组件使用，Task 3 中的 `BufferPoolManager` 就使用他来存储磁盘的请求 `DiskRequest`。调度器会维护一个 background 线程，用来处理被调度的请求。
+
+调度器管理一个共享队列（channel）来调度以及处理 `DiskReqeust`s。某个线程会向 queue 中添加一个请求，调度器的 background worker 会处理该请求。已经实现了一个线程安全的 `Channel` 了，可以使用。当然你也可以实现自己的。
+
+`DiskScheduler` 的构造、析构函数都已经实现了，他们会负责创建、join 工作线程。你只需要实现以下函数：
+
+- `Schedule(std::vector<DiskRequest> &requests)`: 调度一整个 vector 的 `DiskManager` 去执行。`DiskRequest` 指定了这个请求是要写还是读，需要从哪读，向哪里写，以及操作的 page id。`DiskRequest` 还包含一个 `std::promise`，一旦请求被处理，它就应该被设置为 ture。在 leaderboard 挑战中，你可能需要使用请求 vector 来预取数据。
+- `StartWorkerThread()`: 启动 background worker 线程。他在 `DiskScheduler` 的构造函数中构造，这个方法里被调用，负责读取队列中的请求然后分配他们给 `DiskManager`。记得要正确的设置 `DiskRequest` 的回调，来通知请求者请求完成。直到 `DiskScheduler` 完成前都不要析构。
+
+这里使用 `std::future` / `std::promise` 来实现通知的机制，具体细节不懂的看 cppref。
+
+记得实现要线程安全。
+
+### Disk Manager
+
+它用来从硬盘中读取 page，或者向硬盘中写 page。你的调度器会使用 `DiskManager::ReadPage()` 以及 `DiskManager::WritePage()` 来进行读写操作。
+
+## Task #3 Buffer Pool Manager
+
+折腾半天，终于要来实现 `BufferPoolManager` 了。重复一次，`BufferPoolManager` 通过 `DiskScheduler` 来从磁盘中获取数据库的页，把他们写入内存；也可以在明确需要，或者要把页 evict 来获得空间时把脏页写回硬盘。
+
+你的 `BufferPoolManager` 需要使用 `ArcReplacer` 以及 `DiskScheduler`。`ArcReplacer` 负责 track 哪些页可以被访问以及哪些被 evict 以读取新的页。`DiskScheduler` 通过 `DiskManager` 读写磁盘。
+
+此外提供了一个帮助类叫 `FrameHeader`。可以帮助管理内存中的 frames。必须通过 `FrameHeader`s 来访问页数据。它有一个 `GetData()` 方法返回指向原始 frame 的指针，`DiskScheduler`/`DiskManager` 可以使用这个指针来把物理页的内容拷贝到内存里。
+
+提醒一下，buffer pool manager 不需要理解 page 里的内容，它只管理 page id 以及存储他们的 `FrameHeader`s。此外，`BufferPoolManager` 也可以复用 `FrameHeader` 来存储不同的 page。
+
+#### 并发
+
+实现多线程的 buffer pool manager 的时候，要注意同步数据。我们不想在 buffer pool 中的不同 frame 中拷贝多个相同的 page。否则要考虑：
+
+- 线程 T1 从磁盘中读取 page X1，然后修改他，我们把修改后的版本称为 X2.
+- 线程 T2 从磁盘中读取 page X1 然后放在了不同的 frame 里，之后进行修改，称他为 X3.
+- T2 把 X3 写回磁盘
+- T1 把 X2 写回磁盘
+- data race
+
+总之，同一 page 在内存中只能有一份；此外，不能在其他线程访问 page 时 evict 它，我们在 frame 上维护了一个引用计数来记录。最后，为了 track page 在哪个 frame 中存的，还要维护一个哈希表来记录 page id 和 frame id。
+
+引用计数代表了访问 page 的线程数量，只要它大于 0，buffer pool manager 就不能 evict 它。你可以用原子变量 `pin_count_` 来维护引用计数。记住，`pin_count_` 和 `ArcReplacer::SetEvictable` 不是一回事，你需要小心同步二者。之后还要 update `is_dirty_` 这个 flag。如果你在 evict page 时发现设置了这个 flag，你就需要根据它来在内存和硬盘中同步数据。
+
+最后，要实现 `ReadPageGuard` 以及 `WritePageGuard`。这些都是 RAII 类，提供线程安全的对下层 page 的读写。你大概需要实现 `BufferPoolManager` 中的 `CheckedReadPage` 以及 `CheckedWritePage`。最好实现 `BufferPoolManager::GetPinCount` 进行测试。
+
+### 实现
+
+不管怎么实现，函数签名别改变就行，然后你要对 RAII 以及 移动语义 有深刻的理解。注释里有很多提示。
+
+对于 `BufferPoolManager` 的 public 方法，从头到尾一把锁是够用的，但你要注意性能，不然未来的测试会过不去。
+
+# 实现
+
+上来 p1 感觉就上强度了，task 要求本身就非常长。
+
+## Task #1
+
+首先肯定还是先考虑单线程的问题。看了一眼 test，本地的 `arc_replacer_test` 并没有并发的测试，`buffer_pool_manager_test` 后面有并发访问。那就到 task #3 再考虑并发的事情吧。
+
+看到预定义的 `std::mutex`，那应该也不太要求你写什么无锁结构，用基础的锁搞对了就行。
+
+这一部分明显是实现底层的控件，之后我们会用 `buffer_pool_manager` 来控制它。
+
+最简单的 `ArcReplacer::Size()`，代表 evictable 的 frame 的 size，直接就是 `curr_size_`。
+
+阅读了描述之后，感觉 `frame` 就是用来装 `page` 的，而 `page` 则是数据的抽象，要被装到 `frame` 才能被读，也就是说 `frame` 就是内存块啦。**所以如果 `page` 在内存中，那 `frame` 和 `page` 差不多，如果不在了，那么唯一能标识数据的只有 `page_id`。**
+
+**也就是说一个 `page` 有 `frame_id` 就代表他在内存里。**所以他的结构是这么给的。
+
+之后实现以下最复杂的 `ArcReplacer::RecordAccess()`，从这个函数的注释来看我理解的没太大问题。此外暂时忽略 `access_type`，搞 leaderboard 之前再看这里。
+
+> 看了一下已有的结构，感觉比较好的设计 `FrameStatus` 可以玩一下类型体操，用 state pattern，不过我就不改了，毕竟 C++17 没有 concept，想完美的话比较麻烦。
+
+根据上面的算法，需要先看看是否命中缓存。这里我增加了一个成员函数用来做这个事情。函数签名如下：
+
+```cpp
+auto Cached(frame_id_t frame_id, page_id_t page_id) const noexcept -> std::optional<std::shared_ptr<FrameStatus>>;
+```
+
+> 哎，C++没有 match 写起来烦死了。
+
+获取到现在的 cacheness 后就按照算法的要求来应该就可以。先处理命中缓存的情况，如果命中 MRU，那就需要把他移动到 MFU 的最前面；如果命中 MFU，也要把它移动到 MFU 最前面，然后增加访问计数，这个自己改一下 `FrameStatus` 的结构就好。
+
+之后考虑命中 ghost 列表的情况，需要：
+
+1. 按照算法来调整 MRU 的 target size
+2. 从 ghost map 移动到 alive map
+3. 把 frame 移动到 MRU 中
+
+```c++
+void ArcReplacer::MoveFrameFromGhostToMfu(frame_id_t frame_id, page_id_t page_id) noexcept {
+  // SAFETY: caller guarantee the frame is cached in ghost map.
+  auto status = ghost_map_.extract(page_id).mapped();
+  status->frame_id_ = frame_id;
+  alive_map_.insert(std::make_pair(frame_id, std::move(status)));
+  MoveMfuFrameToFront(frame_id);
+}
+```
+
+缓存 miss 的情况下，根据前文，MRU size 和 ghost MRU size 的和应该 `<= replacer size`。
+
+所以这里断言一下，用 `BUSTUB_ENSURE` 就可以了。此外本项目还引入了 `format` 库，这就舒服多了。
+
+```cpp
+BUSTUB_ENSURE(mru_.size() + mru_ghost_.size() <= replacer_size_,
+                  fmt::format("when cache miss, MRU size {} + ghost MRU size {} should less equal than replacer_size",
+                              mru_.size(), mru_ghost_.size()));
+```
+
+最终，这个比较复杂的函数的单线程版本应该实现好了
+
+```cpp
+void ArcReplacer::RecordAccess(frame_id_t frame_id, page_id_t page_id, [[maybe_unused]] AccessType access_type) {
+  auto cacheness = this->Cached(frame_id, page_id);
+  if (cacheness.has_value()) {
+    const auto status = cacheness.value();
+    switch (status->arc_status_) {
+      case ArcStatus::MRU: {
+        status->arc_status_ = ArcStatus::MFU;
+        this->MoveFromMruToMfu(frame_id);
+      }
+      case ArcStatus::MFU: {
+        this->MoveMfuFrameToFront(frame_id);
+        break;
+      }
+      case ArcStatus::MRU_GHOST: {
+        this->AdjustTargetSizeHitGhostMru();
+        this->MoveFrameFromGhostToMfu(frame_id, page_id);
+        break;
+      }
+      case ArcStatus::MFU_GHOST: {
+        this->AdjustTargetSizeHitGhostMfu();
+        this->MoveFrameFromGhostToMfu(frame_id, page_id);
+        break;
+      }
+    }
+  } else {
+    const size_t total_mru_size = mru_.size() + mru_ghost_.size();
+    BUSTUB_ENSURE(total_mru_size <= replacer_size_,
+                  fmt::format("when cache miss, MRU size {} + ghost MRU size {} should less equal than replacer_size",
+                              mru_.size(), mru_ghost_.size()));
+
+    if (total_mru_size == replacer_size_) {
+      auto removed = mru_ghost_.back();
+      mru_ghost_.pop_back();
+      ghost_map_.extract(removed);
+    } else if (total_mru_size + mfu_.size() + mfu_ghost_.size() == 2 * replacer_size_) {
+      auto removed = mfu_ghost_.back();
+      mfu_ghost_.pop_back();
+      ghost_map_.extract(removed);
+    }
+
+    // make the frame status then insert it into alive_map also the MRU list.
+    auto frame_status = std::make_shared<FrameStatus>(page_id, frame_id, false, ArcStatus::MRU);
+    alive_map_.insert(std::make_pair(frame_id, frame_status));
+    mru_.emplace_front(frame_id);
+  }
+}
+```
+
+然后来考虑实现 `Evict()`，首先这个算法是 LRU 的改进，所以肯定是从 MRU 和 MFU 的末端来 `Evict()`，因为它是使用频率最低的。之后似乎原算法的 replace 操作被拆成两个部分，一个是 `ReadAccess()` 里未命中缓存，把 ghost 表中的 item 移除；还有一部分就是 `Evict()` 来做，将 MRU/MFU 中的节点 evict 到 ghost 表中。
+
+具体的规则懒得看论文，问了下 AI，首先命中 ghost 缓存的部分已经在 `ReadAccess()` 实现了，所以忽略。
+
+1. MRU size > target size，从 MRU evict
+2. MRU size `<` target size 或者其为 0，从 MFU evict
+
+最后实现 `Remove()`，应该是最简单的，直接从 `alive_map` 中找 frame， remove 掉。
+
+```cpp
+void ArcReplacer::Remove(frame_id_t frame_id) {
+  auto frame = alive_map_.extract(frame_id);
+  if (frame.empty()) {
+    return;
+  }
+  auto frame_status = frame.mapped();
+  if (frame_status->pinned()) {
+    throw std::runtime_error("Try remove a pinned frame");
+  } else {
+    if (!TryRemoveFromList(frame_id, this->mfu_).has_value()) {
+      TryRemoveFromList(frame_id, this->mru_);
+    }
+  }
+  replacer_size_ -= 1;
+  BUSTUB_ENSURE(replacer_size_ >= 0, fmt::format("replacer size {} should greater equal than zero", replacer_size_));
+}
+```
+
+经过一番调教本地测试是过了，不知道线上的有没有什么坑。总之 Task #1 还是不难的。
+
+## Task #2
+
+这个 `DiskScheduler` 也是一个单独的组件，而且比较简单，就俩函数。利用 `DiskManager` 来读写 page 就行了。执行之后用 `std::promise` 来通知 `std::future`
+
+> 不得不说，没有协程来做异步，用 std::future/std::promise 来做确实有点丑，还要 move 还要 get 的。
+
+本地测试也很容易过。
+
+## Task #3
+

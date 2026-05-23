@@ -1,0 +1,41 @@
+---
+title: "talk_04"
+description: "title: Talk #4 - Memory Management & Buffer Pools"
+tags: ["cpp", "database", "cmu-15445"]
+date: 2024-01-01
+set: "cmu-15445"
+---
+---
+title: Talk #4 - Memory Management & Buffer Pools
+description: DBMS 如何管理内存？
+date: 2025-11-04 00:00:00+0000
+---
+
+> [!CAUTION]
+>
+> [#04 - Memory Management & Buffer Pools (CMU Intro to Database Systems)](https://www.youtube.com/watch?v=8-2yv4z0VZc&list=PLSE8ODhjZXjYMAgsGH-GtY5rJYZ6zjsd5&index=4)
+
+这节课的主题是，DBMS 如何管理内存？如何在硬盘和内存之间移动数据？
+
+主要关心的是两个问题：
+
+1. 空间使用：怎么把 page 写到硬盘？宗旨是把常用的 page 都尽可能的放在一块
+2. 时间使用：什么时候把 page 读到内存？什么时候写回硬盘？宗旨是尽可能少得读取硬盘的数据
+
+模型是以下这样：
+
+![存储模型](/images/talk_04-02.png)
+
+Buffer Pool 从硬盘中读取 page，放到内存中，称之为 frame，然后把指针扔给引擎，保证在引擎执行查询的过程中 frame 是 valid 状态，查完了需要通知一下
+
+所以 Buffer Pool 本质上只是我们的系统分配的固定大小的一大块内存，每个 entry 都称作一个 frame。frame 可以存储不同的 page，另外维护一个 page table 存一些 metadata，读取相应的 page 时要把它 pin 住。之后还要有个锁在查表时控制并发。
+
+注意区分 page directory 和 page table. 
+
+- 前者把 page id 映射到数据库文件的位置。每次有修改都要记录 directory，这样 DBMS 重启之后才能找到页。
+- page table 只是内存中的数据，维护的是 page id 到 buffer pool 中的 frame，frame 存储的是 page 的一个拷贝。
+
+我们要做的类似操作系统的 virtual memory 特性。
+
+具体 Buffer Pool 该用什么策略维护 page 呢？有一大堆算法，比如 LRU，Clock，LRU-K 等等。这里使用的是 IBM 在 2003 年提出的 ARC (Adaptive replacement cache).
+

@@ -1,0 +1,45 @@
+---
+title: "smoothstep"
+description: "title: 理解 smoothstep"
+tags: ["math", "gamedev"]
+date: 2024-01-01
+set: "math-interpolation"
+---
+---
+title: 理解 smoothstep
+description: 读 The book of shaders 时接触的第一个函数，感觉很有意思
+date: 2025-08-29 00:00:00+0000
+---
+
+> [!CAUTION]
+>
+> 参考：
+>
+> [An In-Depth look at Lerp, Smoothstep, and Shaping Functions](https://www.youtube.com/watch?v=YJB1QnEmlTs)
+>
+> [Smoothstep: The most useful function](https://www.youtube.com/watch?v=60VoL-F-jIQ)
+>
+> 配合 [Desmos | 图形计算器](https://www.desmos.com/calculator?lang=zh-CN) 食用
+
+据说这是最有用的函数。
+
+## 自己实现一个 smoothstep
+
+从 $a = x^2$ 开始，再绘制一个 $b = 1-(x-1)^2$ 这样的抛物线，对这两个函数进行线性插值，得到 $a(1 - x)+bx$，化简最后得到 $x^2(3-2x)$ ，得到一个这样的抛物线。
+
+![图1](/images/smoothstep-01.png)
+
+为了方便，把上式写成 $s=k^2(3-2k)$，之后需要一个 $k=x$，对他进行 clamp，最后得到了 $k=max(0,min(1,x))$，于是就得到了 smoothstep 函数。
+
+![image-20250828233915888](/images/smoothstep-02.png)
+
+接下来对于他的左右平移、坡度之类的，都是初中数学学过的，就不赘述了。
+
+最终得到的 k 是这样的 $k=max(0,min(1,(x-t_1)/(t_2-t_1)))$
+
+如果对一个正弦函数乘 $s$，就会变成：
+
+![图2](/images/smoothstep-03.png)
+
+可以灵活调整你的参数。
+

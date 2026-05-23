@@ -1,0 +1,360 @@
+---
+title: "crust_of_rust_traits"
+description: "title: Crust of Rust - Dispatch and Fat Pointers"
+tags: ["rust", "crust-of-rust"]
+date: 2024-01-01
+set: "crust-of-rust"
+---
+---
+title: Crust of Rust - Dispatch and Fat Pointers
+description: Rust 的 traits
+date: 2025-09-20 00:00:00+0000
+---
+
+> [!CAUTION]
+>
+> [Crust of Rust: Dispatch and Fat Pointers](https://www.youtube.com/watch?v=xcygqF5LVmM)
+
+Rust 的多态看起来有点神奇，不同于传统 oop，这个视频来深入了解。
+
+# 静态 dispatch
+
+从简单的开始：
+
+```rust
+pub fn strlen(s: impl AsRef<str>) -> usize {
+    s.as_ref().len()
+}
+
+pub fn strlen2<S>(s: S) -> usize
+where
+    S: AsRef<str>,
+{
+    s.as_ref().len()
+}
+```
+
+这两个函数的作用一模一样，都是泛型函数，接受任何可以被转换为 `&str` 的参数。
+
+调用时可以这样：
+
+```rust
+pub fn foo() {
+    // &'static str
+    strlen("hello world");
+
+    // String: impl AsRef<str>
+    strlen(String::from("hello world"));
+}
+```
+
+编译时，编译器会生成对应不同类型的函数供实际调用，跟 C++ 也差不多。
+
+所以想把他做成动态库也是不容易的，因为别人的类型可能调用你没有生成的函数，跟 C++ 也差不多。
+
+实际上比较好的例子是哈希表这种，编译器只会根据你需要的类型生成需要的函数。
+
+所以究竟 dispatch 是什么呢？
+
+```rust
+pub trait Hi {
+    fn hi(&self);
+}
+
+impl Hi for &str {
+    fn hi(&self) {
+        println!("hi {}", self);
+    }
+}
+
+pub fn foo() {
+    "L".hi();
+}
+```
+
+编译器会先检查 `"L"` 的类型，然后看看这个类型支持的方法，之后找不带 `hi()`，之后就会去查找 Trait 了。
+
+另外一种就是（实际上是一个语法糖）：
+
+```rust
+pub fn bar(h: impl Hi) {
+    h.hi();
+}
+```
+
+编译器此时并不知道 `h` 的类型，不过调用他的时候是知道传入参数的准确类型的，所以编译器可以在编译期静态 dispatch，知道要调用 `hi()` 这个方法。
+
+如果我们不想给每个类型都生成一个函数，或者你有一个 vector，里面的内容实现了 `Hi`,
+
+```rust
+pub fn foo() {
+    for h in ["a", "b", "c"] {
+        h.hi();
+    }
+}
+```
+
+vector 里的类型都是同一种就 ok，但如果只想要能调用 `hi()` 而并不 care 他们是同一个类型呢？
+
+# Trait 对象
+
+首先牢记以下两者等价，H 代表一种类型，我们需要它能够代表多种类型
+
+```rust
+pub fn bar(h: &[impl Hi]) {
+    ...
+}
+
+pub fn bar2<H: Hi>(h: &[H]) {
+    ...
+}
+```
+
+在 Rust 中，`dyn` 关键字代表动态类型。你可以把他想象为类似类型擦除。
+
+```rust
+pub fn bar(h: &[dyn Hi]) {..}
+```
+
+但实际上这并不能编译，编译器会告诉你无法在编译期确定它的 size。
+
+首先要介绍一下 [Sized in std::marker - Rust](https://doc.rust-lang.org/std/marker/trait.Sized.html) 这个 trait，大部分类型以及大部分的 Trait 都是 `Sized`，`Sized` 会为所有能实现 `Sized` 的类型自动实现。
+
+我们来看最简单的 `strlen()`
+
+```rust
+pub fn strlen(s: impl AsRef<str>) -> usize {
+    s.as_ref().len()
+}
+```
+
+传入的参数 `s` 需要在编译期知道大小，编译器才能知道如何传递这个参数，即使这里没有要求 `Sized`，但实际上有一个隐式的 `Sized` 要求。在 `strlen()` 这个例子中，我们在调用泛型函数生成对应的代码时是可以确定参数的类型，所以能确定他的 size。
+
+对于动态的对象该怎么办？因为它没有一个固定的 size，在上面的例子中，`dyn Hi` 可以是任何类型。此外，我们传入的是一个 slice，slice 也只是一段内存空间，它内部的每个元素 size 相同。
+
+**`dyn` object 以及 slice 是两个运行时才知道 size 的类型。**
+
+总之，如果不知道参数的 size，那么编译器无法生成调用它的代码。
+
+对于动态类型，我们需要借助一些 Sized 类型来间接使用它。
+
+例如可以是引用，**引用的 size 是固定的，一个或者两个指针那么大**。**此外也可以是一个 `Box` 或者 `Arc`，它们的 size 也是固定的**。
+
+以 `Box` 为例，它的定义类似：
+
+```rust
+struct Box<T: ?Sized> { ... }
+```
+
+`?` 代表“不必须”。所以对于 `Box`，它可以接受一个非 `Sized` 类型。
+
+```rust
+pub fn strlen(s: Box<dyn AsRef<str>>) -> usize {...}
+```
+
+# 动态分配
+
+问题来了，对于这种代码：
+
+```rust
+pub fn say_hi(s: Box<dyn Hi>) {
+	s.hi();
+}
+```
+
+编译器是怎么知道要如何调用 `hi()` 的呢？在静态的分配中，在泛型函数被实例化时已经知道了参数的具体类型，所以可以进行调用很合理。
+
+对于动态类型，[Dynamically Sized Types - The Rust Reference](https://doc.rust-lang.org/reference/dynamically-sized-types.html) 中描述到：
+
+> [!NOTE]
+>
+> - [Pointer types](https://doc.rust-lang.org/reference/types/pointer.html) to DSTs are sized but have twice the size of pointers to sized types
+>   - Pointers to slices also store the number of elements of the slice.
+>   - Pointers to trait objects also store a pointer to a vtable.
+
+那什么是 vtable ?
+
+**vtable 存储了这个类型满足的所有 trait 的方法的指针。**
+
+每个具体的类型被转换为动态类型时都会构造一个指向 vtable 的指针。所以它被称为 fat pointer。
+
+对于上个例子，生成的代码类似于：
+
+```rust
+// &str -> &dyn Hi
+// 1. ptr to the str
+// 2. HiVtable {
+//    hi: &<str as Hi>::hi
+//}
+// 调用时类似: 
+// s.vtable.hi(s.ptr)
+```
+
+当然 vtable 是针对每个类型静态创建的。
+
+如果我想让一个 `dyn` 对象同时满足两个 trait 呢？实际上这是不合法的，因为两个 trait 的 vtable 不同，你需要把两个 trait 合并成一个 super trait 才行，编译器并不会自动帮你做这些。否则会报错只有 auto traits 才能作为 trait 对象的额外 trait。意思是指需要像 `Send` 这种 marker trait 才行，毕竟他们没有方法，也就不需要 vtable。不过目前不能自定义 marker trait。
+
+# 限制：关联类型
+
+我们改改 `Hi`
+
+```rust
+pub trait Hi {
+    type Name;
+    
+    fn hi(&self);
+}
+```
+
+我们只是加了一个关联类型，就不能通过编译了。你需要给你的 `dyn` 动态类型加一个关联类型的提示，类似于：
+
+```rust
+pub fn boo(s: &dyn Hi<Name = ()>);
+```
+
+因为类型信息都是编译期的，运行期没法获取。
+
+# 限制：静态 trait 方法
+
+```rust
+pub trait Hi {
+    fn hi(&self);
+    
+    fn hello();
+}
+```
+
+此时，`dyn Hi` 是无法编译的，rustc 会报错，`Hi` 不能被构造为对象，他不是“对象安全”的。调用起来就类似：
+
+```rust
+(dyn Hi)::hello();
+```
+
+非常奇怪，因为不知道具体是什么类型调用 `hello()`，自然不能编译。
+
+# 禁止 trait 对象
+
+```rust
+pub trait Hi
+where 
+	Self: Sized {
+        ...
+}
+```
+
+通过这样你就可以禁止构造出这个 trait 的对象，但实际上很少见。
+
+# 对象安全
+
+Object Safety，现在叫做 [dyn compatible - The Rust Reference](https://doc.rust-lang.org/reference/items/traits.html#r-items.traits.dyn-compatible.async-traits)
+
+基本上有以下几个要求：
+
+1. trait 的方法中不能有泛型类型
+2. 必须接受 self 参数
+3. 不能返回 Self 类型
+
+满足以上三点才可以创建动态类型的对象。
+
+可以参考标准库中的一些例子，例如 [Extend in std::iter - Rust](https://doc.rust-lang.org/std/iter/trait.Extend.html) 这个 trait
+
+```rust
+fn add_true(v: &mut dyn Extend<bool>) {
+    v.extend(std::iter::once(true));
+}
+```
+
+现在 Rust 的版本比较新了，会直接提示 `Extend` 不能创建 dyn 对象，以及原因是它有一个泛型参数。
+
+实际上原因也很形象，对于 dyn 对象，我们要在 v-table 中存储方法的地址，但是泛型参数的 extend 实际上还没有被生成。
+
+再比如 `Clone` 也不行，因为它返回了 `Self`，`Self` 肯定需要是 sized，但是我们的 `dyn Clone` 并不是 sized，所以不满足对象安全。
+
+# 部分对象安全
+
+你的 trait 里可能有一些满足对象安全的方法，还有一些不满足，那怎么才能对他创建 dyn 对象呢？
+
+标准库的 [Iterator in std::iter - Rust](https://doc.rust-lang.org/std/iter/trait.Iterator.html) trait 是一个很好的例子。
+
+```rust
+pub fn it(v: &mut dyn Iterator<Item = bool>) {
+    let _ = v.next();
+}
+```
+
+这段代码是可以编译的，如果你看源码的话，**那些不能被放进 v-table（即不满足对象安全的方法）都有 `Self: Sized` 这个约束.** 
+
+# Drop
+
+`drop` 是对象安全的，你也许需要存储一个结构，他们可能拥有不同的类型，之后你再析构他们。
+
+实际上所有的 vtable 也有实现 `drop`。
+
+此外还包括一些 alignment、size 信息，这样才能让分配器来管理内存。
+
+# 动态大小类型
+
+以下三种类型都是动态大小：
+
+```rust
+// dyn Trait -> * -> (*mut data, *mut vtable)
+// [u8]		-> * -> (*mut data, usize len)
+// str 		 -> * -> (*mut data, usize len)
+```
+
+所以这就是为什么你的参数不能直接写 `[u8]`，因为他不是 sized；同理直接返回 `[u8]` 也不行。
+
+标准库有一个 `std::ptr::DynMetadata` 包含了一些信息[DynMetadata in std::ptr - Rust](https://doc.rust-lang.org/std/ptr/struct.DynMetadata.html)，不过还不是 stable。
+
+更多细节：[2580-ptr-meta - The Rust RFC Book](https://rust-lang.github.io/rfcs/2580-ptr-meta.html)
+
+# 结尾
+
+## `Box<[u8]>` vs `Vec\<u8\>`
+
+这俩明显不一样，`Vec<u8>` 存储了长度信息，你可以向其添加元素，`Box<[u8]>` 是不可变的，单纯是一个 slice。
+
+## dyn Fn() vs. fn() vs. impl Fn()
+
+```rust
+// 这个是 Fn() trait object，这是一个 fat ptr，拥有数据、vtable 两个域
+fn foo(f: &dyn Fn()) {}
+
+// fn() 必须是一个函数，不能是闭包，fn() 是一个函数指针
+fn bar(f: fn()) {}
+
+fn main() {
+    let x = "Hello";
+
+    // ok
+    foo(&|| {
+        let _ = x;
+    });
+
+    // err
+    // bar(&|| {
+    //     let _ = x;
+    // });
+}
+```
+
+此外还有
+
+```rust
+fn baz(f: impl Fn()) {}
+
+// ok
+baz(|| {
+    let _ = x;
+})
+```
+
+时刻记住，`impl Fn()` 只是一个泛型约束的语法糖。
+
+通常 `impl Fn()` 可能更经常使用，有一些情况下你可以使用 trait object（当然，需要object safe），因为使用 `impl Fn()` 时你会把泛型参数一直传播出去。
+
+## Any trait
+
+[Any in std::any - Rust](https://doc.rust-lang.org/std/any/trait.Any.html) 这个 trait 会返回一个类型的标识符。编译器会保证标识符唯一。如果你的 trait object 实现了 `Any` trait，那你就可以获得他的类型信息之后使用 downcast 转换为他实际的类型。
+
+可以查看文档了解更多 [std::any - Rust](https://doc.rust-lang.org/std/any/index.html) 

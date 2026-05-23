@@ -1,0 +1,174 @@
+---
+title: "Caches"
+description: "title: Scott Meyers - 为什么要理解 CPU 缓存"
+tags: ["cpp", "performance"]
+date: 2024-01-01
+---
+---
+title: Scott Meyers - 为什么要理解 CPU 缓存
+description: 如何写出高性能的代码？
+date: 2026-03-22 00:00:00+0000
+---
+
+> [!CAUTION]
+>
+> [code::dive conference 2014 - Scott Meyers: CPU Caches and Why You Care](https://www.youtube.com/watch?v=WDIkqP4JbkE)
+>
+> Scott Meyers 讲的，这个人就不用多介绍了。
+
+## 引言
+
+不管你用什么语言、写什么程序，最终的性能都会由硬件决定，所以需要理解硬件。
+
+假设有一个矩阵，我们因为某些原因要遍历一遍矩阵内的元素，显然这有两种办法遍历：
+
+- 按行
+- 按列
+
+不管哪种方式，两种方法都能完成任务，仅仅是他们遍历的顺序不同。
+
+**不过简单的写两个代码对比下就会发现，不管是什么编译器，随着矩阵的大小增加，按行遍历执行的开销几乎是线性增长，但按列遍历的开销中间会有跳变。**说明有什么底层机制在影响性能。
+
+之后再举一个例子，假设有一个矩阵，需要数出矩阵中奇数元素的个数，我们可以并行做这件事，使用 P 个线程然后把矩阵分成 P 份，平均给每个线程去计算，最后加和。伪代码如下：
+
+```cpp
+int result[P];
+// Each of P parallel workers processes 1/P-th of the data;
+// the p-th worker records its partial count in result[p]
+for (int p = 0; p < P; ++p )
+    pool.run( [&,p] {
+        result[p] = 0;
+        int chunkSize = DIM/P + 1;
+        int myStart = p * chunkSize;
+        int myEnd = min( myStart+chunkSize, DIM );
+        for( int i = myStart; i < myEnd; ++i )
+            for( int j = 0; j < DIM; ++j )
+                if( matrix[i*DIM + j] % 2 != 0 )
+                    ++result[p]; } );
+
+pool.join();                // Wait for all tasks to complete
+odds = 0;                  // combine the results
+for( int p = 0; p < P; ++p )
+    odds += result[p];
+```
+
+然后实际测量一下就发现，2 ~ 15 个线程基本是负提升，16 个线程后执行速度才比单核快，但也只提升了一点点。
+
+随后稍微改一下代码：
+
+```cpp
+int result[P];
+for (int p = 0; p < P; ++p )
+    pool.run([&p] {
+        int count = 0;        // instead of result[p]
+        int chunkSize = DIM/P + 1;
+        int myStart = p * chunkSize;
+        int myEnd = min( myStart+chunkSize, DIM );
+        for( int i = myStart; i < myEnd; ++i )
+            for( int j = 0; j < DIM; ++j )
+                if( matrix[i*DIM + j] % 2 != 0 )
+                    ++count;        // instead of result[p]
+        result[p] = count; });    // new statement
+
+...                         // nothing else changes
+
+```
+
+唯一的区别就是不直接访问全局的数组而是每个线程单独一个变量。
+
+看似增加了多余的赋值开销，但实际上最后的结果反而符合直觉，随着线程数提升，性能呈线性提高。
+
+这说明，**线程访问内存的开销是需要被注意的。**
+
+实际上在这两个例子中都是 CPU 的缓存在影响性能。
+
+## Cache
+
+CPU 的缓存只是：small amounts of unusually fast memory.
+
+- 会存储最近访问的内存位置的内容
+- 访问速度很快
+
+通常有三种缓存：
+
+- Data (D-cache, D$)
+- Instruction (I-cache, I$)
+- TLB -> 缓存从虚拟页到物理页的结果
+
+现代 CPU 通常是三级缓存，L1 L2 L3，性能是逐级递减，不过容量上升。
+
+## Cache Lines
+
+Cache 会排成 lines，每个都会持有多个临近的 words。
+
+x86 通常是 64 字节。
+
+读写内存其实是以 cache line 为单位，
+
+例如读哪怕一个不在 cache 中的字节，也会从内存里读满整条 cache line。
+
+写内存同理，写的时候最后也会把整条 cache line 写入内存。
+
+这也能解释开头的例子，以行为顺序读取矩阵明显更快，因为 cache 命中率高。
+
+硬件通常会猜你想读的内容然后进行一些 prefetch。
+
+也就是说线性的结构通常会性能更高，所以实际应用中，排序后的数组 + 二分查找经常比 O(1) 的哈希表更快。
+
+## Cache Coherency
+
+不同的核心都持有同一份数据的拷贝时会发生什么？
+
+假设有两个核心，他们都想访问同一个内存位置，假设核心0会写入，核心1读取。
+
+那么最后核心1会读取到什么数据？是0写入前的？还是0写入后的？或者是什么一半一半的脏数据？
+
+对于软件工程师来说，你只需要读取一个内存位置中的值，但对于硬件来说，他可能处于缓存，处于内存。
+
+实际上在写多线程程序时，通常都会告诉你避免 data races。一般通过两种方式：
+
+1. mutex
+2. atomic variables
+
+硬件并不会考虑这些。
+
+但同步设施会导致一些性能损失换取你能看到正确的结果。
+
+## False Sharing
+
+假设核心0访问地址 A，核心1访问地址 A+1.
+
+- 首先，这是俩不同的地址，所以没有 race，A 和 A+1 明显是不同的地址。
+
+- 但是，**很有可能 A 和 A+1 处于同一个 cache line**，然后记住，**cache line 是内存和缓存之间交互的基本单位**
+
+  那么当核心0写完数据之后，在核心1中这条 cache line 会标记为 dirty，所以当核心1想写数据时又要从内存取一次数据。
+
+所以，false sharing 指的是你访问了一个和另外一个正在被访问内存相近的位置，他们处于同一条 cache line，但并没有冲突。
+
+这就能解释开头的代码，为什么访问第一种写法访问 `result[p]` 更慢、以及每个 thread 都给一个计数器后更快。
+
+总之，**要满足以下所有条件才会出现 false sharing**：
+
+1. 不同的变量处于同一条 cache line
+2. 不同的核心（线程）正在访问那条 line
+3. 高频率
+4. 至少有一个核心是写者
+
+以下所有类型的数据都会受影响：
+
+1. 静态分配
+2. 堆分配
+3. thread local 和 原子变量
+
+## Guidance
+
+- 多使用线性的 array 遍历
+- 尽量多使用 cache line
+- 多线程中注意 false sharing
+- 让你要处理的结构能够 fit in cache
+  - 例如避免在多态类型上迭代进行虚函数调用（可以先把他们按类型排序）
+- 让最快的路径是 branch-free 的 sequence
+  - 减少分支
+  - 减少重复代码（这可能导致你的 cache 里有多份重复的指令，没意义）
+- PGO and WGO

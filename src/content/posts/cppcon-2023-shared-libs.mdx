@@ -1,0 +1,64 @@
+---
+title: "Linkers, Loaders and Shared Libraries"
+description: "win/linux 上的动态库"
+cover: "/covers/cppcon-2023.png"
+tags: ["cpp", "cppcon"]
+date: 2025-11-15
+set: "cppcon-2023"
+---
+
+> [!CAUTION]
+>
+> [Linkers, Loaders and Shared Libraries in Windows, Linux, and C++ - Ofek Shilon - CppCon 2023](https://www.youtube.com/watch?v=_enXuIxuNV4)
+
+# 术语
+
+- shared library 动态库
+
+  指代 shared objects, dynamic object, dynamic shared object(DSO), dynamic load library(dll), dynamic shared library.
+
+- binary 二进制
+
+  executable / shared library
+
+- symbol 符号
+
+  函数 / 全局变量，
+
+- Linux:
+
+  unix-like system（包括 mac-os）
+
+# 简介 link
+
+```mermaid
+block-beta
+    columns 4
+    a["src1.cpp"]:1
+    b["src2.cpp"]:1
+    space
+    block:obj:2
+        columns 1
+        block
+            innerc1[".text(code)"]
+            innerc2[".data"]
+        end
+        block
+            innerd1[".text(code)"]
+            innerd2[".data"]
+        end
+    end
+     space
+    block:bin:2
+        columns 1
+        innere1[".text(code)"]
+        innere2[".data"]
+    end
+    space
+    block:seg:2
+        columns 1
+        innerf1["R/X segment"]
+        innerf2["R/W segment"]
+    end
+```
+

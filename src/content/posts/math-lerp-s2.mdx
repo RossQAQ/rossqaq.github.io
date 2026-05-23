@@ -1,0 +1,29 @@
+---
+title: "lerp"
+description: "title: 理解插值的意义"
+tags: ["math", "gamedev"]
+date: 2024-01-01
+set: "math-interpolation"
+---
+---
+title: 理解插值的意义
+description: 入门理解插值
+date: 2025-08-31 00:00:00+0000
+---
+
+> [!CAUTION]
+>
+> [An In-Depth look at Lerp, Smoothstep, and Shaping Functions](https://www.youtube.com/watch?v=YJB1QnEmlTs)
+>
+> 视频里的内容都是我用 glsl 重新实现了一遍然后输出的 webm 格式
+
+插值无非是给出两点后确定其他点的位置信息，最简单的插值公式可以描述为
+$$
+A*(1-t)+B*t
+$$
+通常会被简化为：
+$$
+A+(B-A)*t
+$$
+参数 t 可以有很多种玩法。
+

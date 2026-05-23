@@ -1,0 +1,459 @@
+---
+title: "The book of shaders"
+description: "希望看完这本书我能入门 shader，这里是读书笔记。"
+tags: ["shader", "gamedev"]
+date: 2025-08-30
+---
+
+> [!CAUTION]
+>
+> [The Book of Shaders](https://thebookofshaders.com/) 
+
+# 第一步
+
+Fragment shader，最重要的 Shader 类型。
+
+什么是 Shader？Shader 是一系列指令，他由显卡并行执行，对屏幕上的每个像素执行不同的操作，程序则指出每个像素的位置、颜色信息等等。
+
+这本书遵循的标准是 GLSL (openGL Shading Language)，本书的规则是 [OpenGL Overview - The Khronos Group Inc](https://www.khronos.org/opengl/)
+
+为了让更多的管线并行运行，每个线程都是独立的，所以每个线程不可能检查其他线程的输出结果，不能修改输入的数据，也不能把一个线程的输出结果输出给另一个线程。
+
+且 GPU 会让所有的管道都处于忙碌状态，所以一个线程也不知道他的前一刻做了什么、下一刻会做什么，是无状态的。
+
+## Hello World
+
+```glsl
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform float u_time;
+
+void main() {
+	gl_FragColor = vec4(1.0,0.0,1.0,1.0);
+}
+```
+
+这是一段最最基础的 GLSL 代码。
+
+从这一个代码块我们可以得出以下信息：
+
+1. shader 语言有一个 `main` 函数，**最后返回颜色值**
+2. 最终的像素颜色取决于预设的全局变量 `gl_FragColor`
+3. 这个语言有全局变量和数据类型
+4. 这个 `vec4` 类型的数据是 **规范化的**，也就是说它们的值范围是 [0, 1]。
+5. 这个语言支持宏
+6. 可以给 `float` 类型设置精度，即 `precision mediump float`，设置浮点为中精度
+7. GLSL 语言规范 **不保证变量会进行隐式转换**。
+
+## Uniforms
+
+因为 GPU 的架构，我们从 CPU 输入数据时，所有线程的输入值必须统一（uniform），此外需要 **只读**。这种输入需要在设定精度后就定义。
+
+常见的比如画布尺寸、鼠标位置、时间等。
+
+```glsl
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform float u_time;
+
+void main() {
+	gl_FragColor = vec4(abs(sin(u_time)),0.0,0.0,1.0);
+}
+```
+
+这里就给颜色值的红色通道加了个 `sin(u_time)`，就可以动态的变化颜色了。GLSL 提供了很多数学函数。
+
+## gl_FragCoord
+
+GLSL 有一个默认输入值 `vec4 gl_FragCoord`，记录当前正在处理的像素或者屏幕碎片的坐标。这样我们就知道屏幕上的哪一个线程正在运算。
+
+由于每个像素坐标不同，所以这种变量不是 uniform 而是 **varying**.
+
+```glsl
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_time;
+
+void main() {
+	vec2 st = gl_FragCoord.xy/u_resolution;
+	gl_FragColor = vec4(st.x,st.y,0.0,1.0);
+}
+```
+
+这里把屏幕的坐标除以画布大小，即对他们进行了规范化，然后再返回颜色。
+
+## 运行 Shader
+
+这本书的作者实现了跨平台的 [glslEditor](https://github.com/patriciogonzalezvivo/glslEditor)；你也可以选择 [Shadertoy BETA](https://www.shadertoy.com/)。
+
+不过我这里是跟教程 [How to Write GLSL Shaders in VS Code - YouTube](https://www.youtube.com/watch?v=7UvpTTEE1Hs) 直接在 kiro 里装插件写的。
+
+当然你也可以用 `p5.js`, `Three.js` 这些。
+
+# 算法绘画
+
+## 造型函数
+
+**实际上 shader 只是创建了一个 `f(x, y) = (r, g, b, a)` 这么个函数。**
+
+来看下面这个最简单的 shader，它实现的效果：
+
+{/* video: ./shader_green_line.webm */}
+
+代码很简单：
+
+```glsl
+#ifdef GL_ES
+precision highp float;
+#endif
+
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_time;
+
+float plot(vec2 st) {
+    return smoothstep(0.02, 0.0, abs(st.y-st.x));
+}
+
+void main() {
+    vec2 st = gl_FragCoord.xy/u_resolution;
+    
+    float y = st.x;
+
+    // 会将 y 复制三份
+    vec3 color = vec3(y);
+
+    float pct = plot(st);
+    color = (1.0-pct)*color+pct*vec3(0.0,1.0,0.0);
+
+    // vec4 明白你要使用一个 vec3 和一个透明度构造思维向量
+    gl_FragColor = vec4(color,1.0);
+}
+```
+
+`smoothstep()` 是一个插值函数。`plot()` 这个函数里，对 `st.y` 和 `st.x` 进行插值，这两个坐标差的绝对值大于 0.02 的时候结果都是0，小于0的时候结果都是 1。最后 `color` 还有一个渐变效果（大概是在对角线变成绿色的交界处抗锯齿？），这里是一个线性插值。]
+
+可以换一个函数，之前是 `y = st.x`，可以换成例如幂函数
+
+{/* video: ./shader_x_pow_5.webm */}
+
+```glsl
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+#define PI 3.14159265359
+
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_time;
+
+float plot(vec2 st, float pct){
+  return  smoothstep( pct-0.02, pct, st.y) -
+          smoothstep( pct, pct+0.02, st.y);
+}
+
+void main() {
+    vec2 st = gl_FragCoord.xy/u_resolution;
+
+    float y = pow(st.x,5.0);
+
+    vec3 color = vec3(y);
+
+    float pct = plot(st,y);
+    color = (1.0-pct)*color+pct*vec3(0.0,1.0,0.0);
+
+    gl_FragColor = vec4(color,1.0);
+}
+```
+
+对于这里的 `plot()` 函数，传入的 `pct` 是 `x^5` 这个函数，里面创建了两个 `smoothstep`，分别代表函数的左右两个部分，最后二者相减得到了中间的一条窄带。
+
+可以替换 `x^5` 这个函数，比如替换为 `exp`，然后我就发现 `exp` 在 `x=0` 时为 1，有点大，还得对他做一下归一化，这样就可以画的比较好了。
+
+## Step & Smoothstep
+
+`step()` 函数的插值有一个阶跃效果，改一下上面的 shader 就行。
+
+{/* video: ./shader_step.webm */}
+
+```glsl
+float y = step(0.5, st.x);
+```
+
+当然你还可以尝试其他的函数比如 `smoothstep`：
+
+{/* video: ./shader_smoothstep.webm */}
+
+```glsl
+float y = smoothstep(0.0, 1.0, st.x);
+```
+
+## 正弦、余弦函数
+
+这两个三角函数主要用于构造圆，因为二者的值域都是标准化的，使用弧度制可以轻松表示单位圆。
+
+## 其他造型函数
+
+`glsl` 还提供了一些函数：
+
+```glsl
+y = mod(x,0.5); // 返回 x 对 0.5 取模的值
+y = fract(x); // 仅仅返回数的小数部分
+y = ceil(x);  // 向正无穷取整
+y = floor(x); // 向负无穷取整
+y = sign(x);  // 提取 x 的正负号
+y = abs(x);   // 返回 x 的绝对值
+y = clamp(x,0.0,1.0); // 把 x 的值限制在 0.0 到 1.0
+y = min(0.0,x);   // 返回 x 和 0.0 中的较小值
+y = max(0.0,x);   // 返回 x 和 0.0 中的较大值  
+```
+
+[Golan Levin](http://www.flong.com/) 整理的一些造型函数：
+
+- [多项式造型函数（Polynomial Shaping Functions）: www.flong.com/archive/texts/code/shapers_poly](http://www.flong.com/archive/texts/code/shapers_poly/)
+- [指数造型函数（Exponential Shaping Functions）: www.flong.com/archive/texts/code/shapers_exp](http://www.flong.com/archive/texts/code/shapers_exp/)
+- [圆与椭圆的造型函数（Circular & Elliptical Shaping Functions）: www.flong.com/archive/texts/code/shapers_circ](http://www.flong.com/archive/texts/code/shapers_circ/)
+- [贝塞尔和其他参数化造型函数（Bezier and Other Parametric Shaping Functions）: www.flong.com/archive/texts/code/shapers_bez](http://www.flong.com/archive/texts/code/shapers_bez/)
+- *Kynd - www.flickr.com/photos/kynd/9546075099/*
+
+以下有一些介绍插值的资料。
+
+> [线性插值 - 维基百科，自由的百科全书](https://zh.wikipedia.org/zh-cn/线性插值)
+>
+> [埃尔米特插值 - 维基百科，自由的百科全书](https://zh.wikipedia.org/wiki/埃尔米特插值)
+>
+> [An In-Depth look at Lerp, Smoothstep, and Shaping Functions](https://www.youtube.com/watch?v=YJB1QnEmlTs)
+>
+> [Smoothstep: The most useful function](https://www.youtube.com/watch?v=60VoL-F-jIQ)
+>
+> [smoothstep - OpenGL 4 Reference Pages](https://registry.khronos.org/OpenGL-Refpages/gl4/html/smoothstep.xhtml)
+
+# 颜色
+
+`glsl` 的结构体和 C 有点像，但是访问变量时很灵活。
+
+例如访问一个 `vec3` 你可以使用 `.x .y .z` 也可以使用 `.r .g .b`，取决于你的语义。
+
+你可以使用你需要的任意顺序来简单的投射和混合。
+
+## 混合颜色
+
+`glsl` 中有一个很常用的函数 `mix()`，允许你以百分比来混合两个值，其实它只是执行了线性插值而已。
+
+{/* video: ./shader_mix_color.webm */}
+
+```glsl
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform vec2 u_resolution;
+uniform float u_time;
+
+vec3 colorA = vec3(0.149,0.141,0.912);
+vec3 colorB = vec3(1.000,0.833,0.224);
+
+void main() {
+    vec3 color = vec3(0.0);
+
+    float pct = abs(sin(u_time));
+
+    // Mix uses pct (a value from 0-1) to
+    // mix the two colors
+    color = mix(colorA, colorB, pct);
+
+    gl_FragColor = vec4(color,1.0);
+}
+```
+
+然后这里有很多缓动函数：[Easing Functions Cheat Sheet](https://easings.net/)
+
+## 玩玩渐变
+
+`mix()` 可以输入两个互相匹配的变量类型，不仅仅是只接受 `float`
+
+{/* video: ./shader_line.webm */}
+
+```glsl
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+#define PI 3.14159265359
+
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_time;
+
+vec3 colorA = vec3(0.149,0.141,0.912);
+vec3 colorB = vec3(1.000,0.833,0.224);
+
+float plot (vec2 st, float pct){
+  return  smoothstep( pct-0.01, pct, st.y) -
+          smoothstep( pct, pct+0.01, st.y);
+}
+
+void main() {
+    vec2 st = gl_FragCoord.xy/u_resolution.xy;
+    vec3 color = vec3(0.0);
+
+    vec3 pct = vec3(st.x);
+
+    // pct.r = smoothstep(0.0,1.0, st.x);
+    // pct.g = sin(st.x*PI);
+    // pct.b = pow(st.x,0.5);
+
+    color = mix(colorA, colorB, pct);
+
+    // Plot transition lines for each channel
+    color = mix(color,vec3(1.0,0.0,0.0),plot(st,pct.r));
+    color = mix(color,vec3(0.0,1.0,0.0),plot(st,pct.g));
+    color = mix(color,vec3(0.0,0.0,1.0),plot(st,pct.b));
+
+    gl_FragColor = vec4(color,1.0);
+}
+```
+
+取消 25~27 行的注释就会变成：
+
+{/* video: ./shader_mix_rgb.webm */}
+
+## HSB
+
+除了 rgb 还有 HSB (HSV) 色彩空间来描述颜色，HSB 代表色相（Hues）、饱和度（Saturation）、明度（Brightness）。
+
+总之 RGB 常用于三维笛卡尔坐标系下的颜色表示，而 HSB 用于圆柱坐标系下的颜色表示。
+
+> [HSB](http://en.wikipedia.org/wiki/HSL_and_HSV) wiki
+
+我们可以用绘制出 HSB 的色相图，色相可以用角度来表示。于是我们可以用 glsl 提供的 `length()` 和 `atan()` 函数转换下坐标。
+
+{/* video: ./shader_hsb_rect.webm */}
+
+```glsl
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+#define TWO_PI 6.28318530718
+
+uniform vec2 u_resolution;
+uniform float u_time;
+
+//  Function from Iñigo Quiles
+//  https://www.shadertoy.com/view/MsS3Wc
+vec3 hsb2rgb( in vec3 c ){
+    vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),
+                             6.0)-3.0)-1.0,
+                     0.0,
+                     1.0 );
+    rgb = rgb*rgb*(3.0-2.0*rgb);
+    return c.z * mix( vec3(1.0), rgb, c.y);
+}
+
+void main(){
+    vec2 st = gl_FragCoord.xy/u_resolution;
+    vec3 color = vec3(0.0);
+
+    // Use polar coordinates instead of cartesian
+    vec2 toCenter = vec2(0.5)-st;
+    float angle = atan(toCenter.y,toCenter.x);
+    float radius = length(toCenter)*2.0;
+
+    // Map the angle (-PI to PI) to the Hue (from 0 to 1)
+    // and the Saturation to the radius
+    color = hsb2rgb(vec3((angle/TWO_PI)+0.5,radius,1.0));
+
+    gl_FragColor = vec4(color,1.0);
+}
+```
+
+我们可以把正方形改成色轮，
+
+emmm，限制个渲染的半径就可以，例如给 radius 加个 if？之后还有个练习是修复这个色谱，当前我们的色谱长这样：
+
+{/* video: ./shader_ryb.webm */}
+
+我限制的 radius 是 0.9，看到红色的对面是 CYAN，但工具上的色轮红色对面是绿色，题目说可以用塑形函数来让红色对面是绿色，emmm 暂时没有什么思路。
+
+> 这里有个有意思的，英语语境的 Cyan 更偏向蓝，而中文语境的青更偏绿，比如青苹果。可以了解下面的视频
+>
+> https://www.bilibili.com/video/BV1bkhez6EUo
+
+此外，还有参数前 `in` `out` `inout` 三个修饰符，代表只读、只写、可读可写
+
+# 形状
+
+## 长方形
+
+长方形可以依赖 step 函数来绘制边。
+
+```glsl
+uniform vec2 u_resolution;
+
+void main(){
+    vec2 st = gl_FragCoord.xy/u_resolution.xy;
+    vec3 color = vec3(0.0);
+
+    // Each result will return 1.0 (white) or 0.0 (black).
+    float left = step(0.1,st.x);   // Similar to ( X greater than 0.1 )
+    float bottom = step(0.1,st.y); // Similar to ( Y greater than 0.1 )
+
+    // The multiplication of left*bottom will be similar to the logical AND.
+    // 因为只有 left 和 bottom 都为 1 才会是黑色，所以和 AND 一个逻辑
+    color = vec3( left * bottom );
+
+    gl_FragColor = vec4(color,1.0);
+}
+```
+
+这个 shader 可以绘制长方形的左边、下边。
+
+`left` 和 `bottom` 可以结合起来，因为 `step` 可以接受 vec2，再补上上边、右边
+
+```glsl
+// Author @patriciogv - 2015
+// http://patriciogonzalezvivo.com
+
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_time;
+
+void main(){
+    vec2 st = gl_FragCoord.xy/u_resolution.xy;
+    vec3 color = vec3(0.0);
+
+    // bottom-left
+    vec2 bl = step(vec2(0.1),st);
+    // top-right
+    // 1.0 - st 后，右上角的坐标就变成 (0, 0) 了，可以达到转置坐标系的效果
+    vec2 tr = step(vec2(0.1),1.0-st);
+    color = vec3(bl.x * bl.y * tr.x * tr.y);
+
+    gl_FragColor = vec4(color,1.0);
+}
+```
+
+## 圆
+
+画圆就比较简单了，可以利用圆上的点到屏幕中心坐标的距离相等来绘制，合理利用 `length()`, `distance()` 即可。核心只有一句：
+
+```glsl
+float pct = distance(st,vec2(0.5));
+```
+
+`distance` 内部用的 `sqrt`，你可以使用 `dot` 点乘来获取更高的性能。毕竟对于圆，x 和 y 两个向量都是一样的。
+

@@ -1,0 +1,96 @@
+---
+title: "crust_of_rust_ffi"
+description: "title: Crust of Rust - Build Scripts and FFI"
+tags: ["rust", "crust-of-rust"]
+date: 2024-01-01
+set: "crust-of-rust"
+---
+---
+title: Crust of Rust - Build Scripts and FFI
+description: Rust 跨语言调用的方式
+date: 2025-10-04 00:00:00+0000
+---
+
+> [!CAUTION]
+>
+> [Crust of Rust: Build Scripts and Foreign-Function Interfaces (FFI)](https://www.youtube.com/watch?v=pePqWoTnSmQ)
+
+这里主要讲的是 Rust 的构建脚本，以及 Rust 如何调用 C 兼容的 ABI。其他语言调用 Rust 的部分比较少。会涉及到 c bindgen，以及实现一个 bind 到 `libsodium`（很知名的 C 实现的加密库）的 demo。
+
+# Build scripts
+
+[Build Scripts - The Cargo Book](https://doc.rust-lang.org/cargo/reference/build-scripts.html) 会在编译你的 Rust 程序之前执行，如果你的 cargo 项目根目录下有一个 `build.rs`，那么 cargo 会先编译这个脚本然后运行，之后才构建你的程序。即使是运行在别人电脑上的 crate 也是如此，很方便。
+
+> 当然也不一定非要叫 `build.rs`，可以在 `Cargo.toml` 中指定。
+
+这个脚本跟你的程序交流主要靠环境变量和二进制输出的内容。
+
+脚本中的输出默认是不会被展示的，除非脚本失败了。
+
+编译之后，`target` 下会有构建脚本的产物、错误输出、你原本的工程产物等等。
+
+`OUT_DIR` 环境变量代表构建脚本产物的位置。在你的**工程代码**中，使用 `env!` 这个宏即可读取到这个环境变量（在构建脚本中使用 `std::env::var()` 读取即可）。
+
+> `std::env::var()` 读取的是运行时的环境变量
+>
+> `env!()` 宏读取的是编译时环境变量
+>
+> `OUT_DIR` 是在编译期被 Cargo 设置的
+
+以上，你就可以在编译脚本中向 `OUT_DIR` 输出一些内容，之后在你的工程中与这些内容交流。
+
+比如你生成一些代码，然后在你的工程中通过 `include!` 包含然后在运行时直接调用这些代码。
+
+# Cargo 指引
+
+你可以在构建脚本中配置 Cargo 在接下来的编译/链接时的行为、配置，具体可以参考官方的文档。
+
+Rust 还有一个 `cfg!()` 宏（ `#[cfg(feature = "")]` 同理），常见的是代表一个开关，**你可以在构建脚本中直接指定 rustc 的 flags 进行一些配置，这样就能控制工程中启用的一些 feature 等等。**
+
+> 注意 `Cargo.toml` 中的 feature 和直接传给 rustc 的 feature 的不太一样，但作用都差不多。
+
+有一个 `cargo::metadata=KEY=VALUE`，可以用作传递给下层依赖的信息。例如可能你的依赖里需要一些 C 的 header 路径，获取时你需要用 `DEP_<crate>_KEY=value` 的形式，`KEY` 在 links 中定义。
+
+通常，如果你的 crate 需要 link 一些特定的动态库，那你需要在对应 crate 的 `Cargo.toml` 中指定 link 的库。
+
+你当然可以直接给 rustc 指定 link 谁，但这样就可能很奇怪，通过 `Cargo.toml` 可以让 cargo 做一些检测来链接同一个依赖版本以避免版本冲突等等蛋疼的链接问题。
+
+不过实际上，通常依赖的库都有一个 crate 是 `foo-sys` 版本，唯一做的事情就是把他做一层 binding，这样所有其他的依赖都可以只依赖着一个 crate 了。
+
+> [Build Scripts #*-sys Packages - The Cargo Book](https://doc.rust-lang.org/cargo/reference/build-scripts.html#-sys-packages)
+
+其他还有 `rustc-env` 这一条也许有用。
+
+此外，还有一个 `rerun-if(-env)-changed` 需要注意，**默认情况下，如果一个 crate 有构建脚本，那么每构建一次这个脚本都会运行一次。**你可以通过这两个属性告诉 cargo 什么时候重新运行构建脚本。
+
+> [!CAUTION]
+>
+> 注意，构建脚本并不是处于 sandbox，他可以访问数据库、读写文件、访问网络等等，所以你用的时候要小心，别引发了一些意外的问题。
+
+# libgit2-sys
+
+[rust-lang/git2-rs: libgit2 bindings for Rust](https://github.com/rust-lang/git2-rs) 这是一个 gitc 库的 binding。
+
+可以查看 `libgit2-sys` 的 `Cargo.toml` 他的目录结构就符合上文提到的模式。
+
+这些构建脚本做的事情都差不多，先在环境变量里找库，找不到就去系统路径找；再找不到的话就会从源码编译一次，输出到 `OUT_DIR` 了。之后可能需要 bindgen 来生成 Rust 对动态库的 bindings。
+
+通常会使用 [pkg_config - Rust](https://docs.rs/pkg-config/latest/pkg_config/) 来定位库的位置以及他的信息，不用你自己实现。他会把所有的信息直接转换为 cargo 的合法格式再输出。
+
+具体细节可以查看他的 `build.rs`，这里大概是如果系统中有 libgit2 那么就直接通过 `pkg_config` 获取链接他的信息，然后直接链接；否则就从源码使用 `cc` 编译一次。
+
+# bindgen
+
+我们编译了动态库，那么如何从 Rust 调用这些函数呢？可以使用 [bindgen - Rust](https://docs.rs/bindgen/latest/bindgen/)。
+
+你需要一个 C 的 header，然后使用 bindgen 生成对应的 Rust 类型和接口。
+
+还是以 [libgit2-sys](https://github.com/rust-lang/git2-rs/blob/master/libgit2-sys/lib.rs) 为例，
+
+这里涉及 `extern "C"` 关键字，这个块下有很多函数的声明。`extern` 他说明这个函数并不是定义在这，如果你想调用他的话，去找二进制的符号表；此外，使用 C 的调用约定。
+
+之后，可以看到好多空值的枚举类型，这个也是常用技法，他说明这个结构的实际定义不对 Rust 这一侧透明，他可能定义在库里，不关我们的事，只不过我们会使用指针将他作为参数传递。
+
+还有一些结构有明确的定义，此外包含一个 `#[repr(C)]` 注解。你可以看情况选择是否要手动来定义，这样的好处是可以实现一些方法，顺便调整他的布局，不仅是指内存布局，还有字段的名字等等。
+
+此外，用 bindgen 的话你要注意向后兼容的问题，如果 bindgen 有什么修改，那么同一份 C 代码可能生成不同的 Rust 代码。通常你会在 `build.rs` 里调用 bindgen。

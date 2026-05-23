@@ -1,0 +1,64 @@
+---
+title: "crust_of_rust_async_await"
+description: "title: Crust of Rust - async/await"
+tags: ["rust", "crust-of-rust"]
+date: 2024-01-01
+set: "crust-of-rust"
+---
+---
+title: Crust of Rust - async/await
+description: Rust 的异步关键字
+date: 2025-08-06 00:00:00+0000
+---
+
+> [!CAUTION]
+>
+> [Crust of Rust: async/await](https://www.youtube.com/watch?v=ThjvMReOXYM)
+
+## async 函数是什么
+
+这是你能声明的最简单的异步函数：
+
+```rust
+async fn foo() {}
+```
+
+但他实际上和：
+
+```rust
+fn foo() -> impl Future<Output = ()> {}
+```
+
+是等价的。
+
+`async` 关键字只是一种语法糖。
+
+我们返回的是一个实现 `Future` trait 的类型，`Future` 代表值还不可用。
+
+给他一个类型：
+
+```rust 
+async fn foo() -> usize { 0 }
+```
+
+然后我们在某个地方调用他：
+
+```rust
+fn main() {
+    let x = foo();
+}
+```
+
+这里 `x` 的类型当然不是 `usize`，而是 `impl Future<Output = usize>`，只不过保证 `x` 会在某个时刻变成 `usize`。
+
+而我们需要调用 `.await`，它的语义是，在 `x` 被 resolved 为 `usize` 前不要继续执行函数的剩余部分。
+
+也就是说，一个 `Future` 在被 awaited 前什么都不会做。
+
+**每次执行到 `await` 点时，都会检查这个 `Future` 是否已经完成，如果完成了就会恢复到上一次 yield 的位置执行，否则就会 yield。**
+
+`await` 可以嵌套，形成调用链。
+
+> 实际上各种编程语言的异步都差不多，如果用过 js 的 `promise/await`，也可以轻松理解。
+>
+> 或者你有自己搓过 C++/Rust 的协程异步运行时都可以轻松理解。

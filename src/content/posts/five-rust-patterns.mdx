@@ -1,0 +1,149 @@
+---
+title: "5 个让你写出更好 Rust 代码的 Pattern"
+description: "适合 Rust 宝宝体质的设计模式"
+tags: ["rust", "design-pattern"]
+date: 2024-04-06
+---
+
+> [!CAUTION]
+>
+> 本文搬运自：[5 Essential Rust Design Patterns to Write Better Code](https://www.youtube.com/watch?v=1Ql7sQG8snA)
+
+## Builder
+
+通常用于可以以多种方式构造的对象，提供比较高的可扩展性
+
+```rust
+struct BurgerBuilder {
+    components: Vec<BurgerComponent>,
+}
+
+enum BurgerComponent {
+    BottomBun,
+    Patty,
+    Tomato,
+    Cheese,
+    Lettuce,
+    TopBun,
+}
+
+impl BurgerBuilder {
+    fn new() -> BurgerBuilder {
+        BurgerBuilder {
+            components: vec![BurgerComponent::BottomBun],
+        }
+    }
+    
+    pub fn add_component(mut self, component: BurgerComponent) -> BurgerBuilder {
+        self.coponents.push(component);
+        self
+    }
+    
+    pub fn build(mut self) -> BurgerBuilder {
+        self.components.push(BurgerComponent::TopBun);
+        self
+    }
+}
+```
+
+```rust
+let burger = BurgerBuilder::new()
+	.add_component(BurgerComponent::Patty)
+	.add_component(BurgerComponent::Tomato)
+	.add_component(BurgerComponent::Cheese)
+	.add_component(BurgerComponent::Lettuce)
+	.build();
+```
+
+## Factory
+
+通常会抽象复杂的对象为一个简单的接口。传统 OOP
+
+```rust
+trait Toy {
+    fn log(&self);
+}
+
+struct Robot;
+struct Car;
+
+impl Toy for Robot {
+    fn log(&self) {
+        println!("Robot");
+    }
+}
+
+impl Toy for Car {
+    fn log(&self) {
+        println!("Car");
+    }
+}
+
+enum ToyType {
+    Robot,
+    Car,
+}
+
+struct Factory;
+
+impl Factory {
+    fn build_toy(toy_type: ToyType) -> Box<dyn Toy> {
+        match toy_type {
+            ToyType::Robot => Box::new(Robot),
+            ToyType::Car => Box::new(Car),
+        }
+    }
+}
+```
+
+## RAII
+
+这个没什么好说的。
+
+## TypeState
+
+可以用 type 来管理对象的状态，在编译期就可以保证类型安全。经典的类型体操。
+
+```rust
+struct File<State> {
+    state: State,
+}
+
+struct Closed;
+struct Open;
+
+impl File<Closed> {
+    fn open(self) -> File<Open> {
+        println!("Opening file");
+        File { state: Open }
+    }
+}
+
+impl File<Open> {
+    fn close(self) -> File<Closed> {
+        println!("Closing file");
+        File { state: Closed }
+    }
+
+    fn read(&self) {
+        println!("Reading file");
+    }
+
+    fn write(&self) {
+        println!("Writing file");
+    }
+}
+
+fn main() {
+    let file = File { state: Closed };
+    let file = file.open();
+    file.read();
+    let file = file.close();
+}
+```
+
+## New Type
+
+把 primitive 类型包装为一个 struct。
+
+比较简单，总之就是别想着你那个 primitive type 了，都来玩类型体操。
