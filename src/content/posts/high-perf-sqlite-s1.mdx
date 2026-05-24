@@ -7,15 +7,26 @@ date: 2026-05-16
 set: "high-perf-sqlite"
 ---
 
+import AiChat from "../../components/AiChat.astro";
+
 ## AI 总结
 
+<AiChat
+  question="帮我总结这篇 High Performance SQLite -Introduction 的笔记"
+  answer="本文是 High Performance SQLite 系列的入门篇。SQLite 与 MySQL/PostgreSQL 的 client-server 模型不同，它的数据库就是一个磁盘文件，通过 C 库与之交互，且承诺至少到 2050 年保持向后兼容。由于最初面向嵌入式和移动端设计，SQLite 对断电、媒体移除等异常场景有大量测试，确保事务不会执行到一半。它是开源的，但为保障可靠性不接受社区贡献。
 
+核心要点：
+
+- **本质是文件** — 严格定义的文件格式，新建数据库零开销，macOS 自带 sqlite3 命令行工具
+- **适用场景** — 嵌入式应用、Web 应用、需要可移植性的场景、作为文件协议（读 SQLite 文件比直接读磁盘文件更快）
+- **局限性** — 高并发写入（需理解 WAL 模式）、需要共享数据库的场景、超大数据量、需要严格权限系统"
+/>
 
 
 
 ## SQLite 介绍
 
-对于 MySQL 和 Posgresql，他们都是 client-server 模型、有他们自己的协议，而 SQLite 并不是，一个数据库只是一个单纯的文件，C lib 和这个文件进行交互，文件格式向后兼容。
+对于 MySQL 和 PostgreSQL，他们都是 client-server 模型、有他们自己的协议，而 SQLite 并不是，一个数据库只是一个单纯的文件，C lib 和这个文件进行交互，文件格式向后兼容。
 
 SQLite 保证至少在 2050 年前保证向后兼容。
 
@@ -28,3 +39,25 @@ SQLite 是开源的，但不接受开源贡献，它们声称的原因是为了�
 ## Just a File
 
 之前说过 SQLite 的数据库只是一个磁盘的文件，跟 MySQL 等数据库完全不一样。这个文件有非常非常严格的定义，兼容性很好，所以直接发送文件很方便。由于它是一个文件，所以新建数据库也完全没有开销。
+
+MacOS 上就自带有 sqlite3，直接运行后提示目前是在内存中运行的数据库。
+
+## Good Uses
+
+1. 嵌入式应用
+2. web 应用
+3. portable
+4. 单纯用于文件协议（读 sqlite 的文件比直接读磁盘的文件快很多）
+
+## limitation
+
+1. 并发写量大。如果只是读量比较大那问题不大，如果是并发写可能你要理解 WAL 模式
+2. 如果需要共享数据库，那不太现实
+3. 数据量很大
+4. 需要严格的权限系统
+
+## 文档
+
+有问题当然可以问 AI，但还是推荐看看文档，sqlite 文档质量不错。
+
+比如以 [SELECT](https://sqlite.org/lang_select.html) 为例。
