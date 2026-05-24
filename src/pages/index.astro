@@ -20,7 +20,7 @@ interface SetItem {
 
 type TimelineItem = SingleItem | SetItem;
 
-const allPosts = (await getCollection('posts', ({ data }) => !data.draft))
+const allPosts = (await getCollection('posts', ({ data }) => !data.draft && !data.unpublish))
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 
 const postsWithSet = allPosts.filter((p) => p.data.set);

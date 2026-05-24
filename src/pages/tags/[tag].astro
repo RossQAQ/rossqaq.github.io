@@ -4,14 +4,14 @@ import TagList from '../../components/TagList.astro';
 import { getCollection } from 'astro:content';
 
 export async function getStaticPaths() {
-  const posts = await getCollection('posts');
+  const posts = await getCollection('posts', ({ data }) => !data.unpublish);
   const tags = new Set<string>();
   posts.forEach((post) => post.data.tags.forEach((t) => tags.add(t)));
   return [...tags].map((tag) => ({ params: { tag } }));
 }
 
 const { tag } = Astro.params;
-const allPosts = await getCollection('posts');
+const allPosts = await getCollection('posts', ({ data }) => !data.unpublish);
 const posts = allPosts
   .filter((post) => post.data.tags.includes(tag!))
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
