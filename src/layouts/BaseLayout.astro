@@ -569,6 +569,16 @@ const { title, description = 'A minimal blog' } = Astro.props;
           display: none;
         }
       }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *, *::before, *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
     </style>
   </body>
 </html>
