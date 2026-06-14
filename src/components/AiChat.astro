@@ -18,7 +18,7 @@ const { question, answer } = Astro.props;
     overflow: hidden;
     margin: 1.5rem 0;
     background: var(--bg);
-    font-family: var(--font-body);
+    font-family: var(--font);
   }
 
   :global(.ai-chat-header) {
@@ -26,18 +26,20 @@ const { question, answer } = Astro.props;
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
-    background: color-mix(in srgb, var(--text) 5%, transparent);
+    background: rgba(29, 29, 31, 0.05);
+    background: color-mix(in srgb, var(--fg) 5%, transparent);
     cursor: pointer;
     user-select: none;
     transition: background 0.15s;
   }
 
   :global(.ai-chat-header:hover) {
-    background: color-mix(in srgb, var(--text) 10%, transparent);
+    background: rgba(29, 29, 31, 0.10);
+    background: color-mix(in srgb, var(--fg) 10%, transparent);
   }
 
   :global(.ai-chat-icon) {
-    background: var(--accent, #6366f1);
+    background: var(--accent);
     color: white;
     padding: 0.1rem 0.4rem;
     border-radius: 3px;
@@ -48,7 +50,8 @@ const { question, answer } = Astro.props;
 
   :global(.ai-chat-toggle) {
     font-size: 0.85rem;
-    color: color-mix(in srgb, var(--text) 70%, transparent);
+    color: rgba(29, 29, 31, 0.70);
+    color: color-mix(in srgb, var(--fg) 70%, transparent);
   }
 
   :global(.ai-chat-body) {
@@ -78,26 +81,29 @@ const { question, answer } = Astro.props;
   }
 
   :global(.ai-chat-avatar.user) {
-    background: color-mix(in srgb, var(--text) 15%, transparent);
-    color: var(--text);
+    background: rgba(29, 29, 31, 0.15);
+    background: color-mix(in srgb, var(--fg) 15%, transparent);
+    color: var(--fg);
   }
 
   :global(.ai-chat-avatar.bot) {
-    background: var(--accent, #6366f1);
+    background: var(--accent);
     color: white;
   }
 
   :global(.ai-chat-bubble) {
-    background: color-mix(in srgb, var(--text) 4%, transparent);
+    background: rgba(29, 29, 31, 0.04);
+    background: color-mix(in srgb, var(--fg) 4%, transparent);
     border-radius: 8px;
     padding: 0.5rem 0.7rem;
     font-size: 0.9rem;
     line-height: 1.6;
-    color: var(--text);
+    color: var(--fg);
   }
 
   :global(.ai-chat-answer .ai-chat-bubble) {
-    background: color-mix(in srgb, var(--accent, #6366f1) 6%, transparent);
+    background: rgba(87, 87, 230, 0.06);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
   }
 
   :global(.ai-chat-text) {
@@ -109,7 +115,7 @@ const { question, answer } = Astro.props;
     display: inline-block;
     width: 2px;
     height: 1em;
-    background: var(--accent, #6366f1);
+    background: var(--accent);
     margin-left: 1px;
     vertical-align: text-bottom;
     animation: blink 0.8s step-end infinite;

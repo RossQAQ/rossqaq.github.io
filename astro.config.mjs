@@ -15,7 +15,7 @@ export default defineConfig({
   ],
   markdown: {
     shikiConfig: {
-      theme: 'github-light',
+      theme: 'github-dark',
     },
     remarkPlugins: [remarkMath, remarkGithubAlert],
     rehypePlugins: [rehypeKatex, rehypeMermaidFix],
