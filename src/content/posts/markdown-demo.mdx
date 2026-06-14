@@ -8,6 +8,7 @@ date: 2026-04-12
 
 import WasmRunner from "../../components/WasmRunner.astro";
 import AiChat from "../../components/AiChat.astro";
+import MafsCoordinate from "../../components/MafsCoordinate.astro";
 
 ## 标题层级
 
@@ -195,6 +196,39 @@ $$
 <WasmRunner wasmUrl='/wasm/example.wasm' />
 
 > 上方为 WASM 加载区域。将编译好的 `.wasm` 文件放入 `public/wasm/` 目录即可自动加载和执行。`WasmRunner` 组件支持导出 `_start`、`main` 以及 `update`+`render`（动画循环）等常见入口。
+
+---
+
+## Mafs 数学可视化
+
+使用 [Mafs](https://mafs.dev) 库绘制交互式坐标系和向量，适合线性代数笔记。
+
+### 基本坐标系
+
+<MafsCoordinate xMin={-4} xMax={4} yMin={-4} yMax={4} />
+
+> 鼠标拖拽平移，滚轮缩放。坐标系范围：$x \in [-4, 4]$，$y \in [-4, 4]$。
+
+### 向量
+
+<MafsCoordinate
+  xMin={-5} xMax={5} yMin={-3} yMax={5}
+  vectors={[
+    { tip: [3, 2], label: "v" }
+  ]}
+/>
+
+向量 $\vec{v} = \langle 3, 2 \rangle$，模长 $\|\vec{v}\| = \sqrt{13}$。
+
+### 点的标记
+
+<MafsCoordinate
+  xMin={-3} xMax={3} yMin={-3} yMax={3}
+  points={[
+    { x: 1, y: 2, label: "A" },
+    { x: -2, y: -1, label: "B" }
+  ]}
+/>
 
 ---
 

@@ -1,0 +1,78 @@
+---
+// Wrapper to use MafsCoordinate as an Astro component in .md/.mdx
+import MafsCoordinate from './MafsCoordinate';
+
+interface Props {
+  width?: number;
+  height?: number;
+  xMin?: number;
+  xMax?: number;
+  yMin?: number;
+  yMax?: number;
+  showGrid?: boolean;
+  vectors?: { tail?: [number, number]; tip: [number, number]; color?: string; label?: string }[];
+  points?: { x: number; y: number; color?: string; label?: string }[];
+  pan?: boolean;
+}
+
+const {
+  width = 500,
+  height = 500,
+  xMin = -5,
+  xMax = 5,
+  yMin = -5,
+  yMax = 5,
+  showGrid = true,
+  vectors = [],
+  points = [],
+  pan = true,
+} = Astro.props;
+---
+
+<MafsCoordinate
+  client:only="react"
+  width={width}
+  height={height}
+  xMin={xMin}
+  xMax={xMax}
+  yMin={yMin}
+  yMax={yMax}
+  showGrid={showGrid}
+  vectors={vectors}
+  points={points}
+  pan={pan}
+/>
+
+<style>
+  :global(.mafs-coordinate) {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.5rem auto;
+    background: var(--card-bg, #fff);
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  :global(.mafs-coordinate .MafsView) {
+    --mafs-bg: var(--card-bg, #fff);
+    --mafs-fg: var(--fg, #1d1d1f);
+    --mafs-line-color: var(--border, #e8e8ed);
+    --mafs-origin-color: var(--fg, #1d1d1f);
+    --grid-line-subdivision-color: #f0f0f3;
+    --mafs-axis-stroke-width: 1px;
+    --mafs-line-stroke-dash-style: 4, 4;
+
+    /* Muted, professional palette */
+    --mafs-red: #dc5b51;
+    --mafs-orange: #e08b55;
+    --mafs-yellow: #d4a84b;
+    --mafs-green: #4a9c7c;
+    --mafs-blue: #4b7bab;
+    --mafs-indigo: #5757e6;
+    --mafs-violet: #7e5cc0;
+    --mafs-pink: #c45d8a;
+
+    background: var(--card-bg, #fff);
+  }
+</style>
